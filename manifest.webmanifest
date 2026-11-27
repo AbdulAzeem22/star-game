@@ -1,0 +1,16 @@
+{
+  "name": "The Star Game",
+  "short_name": "Star Game",
+  "description": "The seven-board Star Game and the Sinister Tarot, in English.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e0c1d",
+  "theme_color": "#0e0c1d",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

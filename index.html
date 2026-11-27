@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>The Star Game</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0e0c1d">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: quiet, nocturnal, precise, like an observatory instrument
+   IDEA: an orrery of seven star-boards you turn by hand
+   PICTURE: the live 3D board spiral itself, first thing on screen
+   COLOUR and TYPE: night indigo, bone pieces, one oxblood-red accent; Cormorant Garamond + Inter
+   LAYOUT: slim title bar, board stage, status and controls, then rules and background */
+:root{color-scheme:dark;--bg:#0e0c1d;--panel:#16132a;--line:#2d2848;--ink:#ece6d8;--mute:#9e97b6;--red:#d23a4c;--violet:#9a8fd6;--lc:#cfc6b3;--dc:#3b3456}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow-x:clip;-webkit-tap-highlight-color:transparent}
+h1,h2,h3{font-family:"Cormorant Garamond",Georgia,serif;font-weight:600;line-height:1.05;margin:0;text-wrap:balance}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.top{display:flex;align-items:center;gap:12px;padding:12px max(4vw,14px);border-bottom:1px solid var(--line)}
+.top h1{font-size:28px;letter-spacing:.01em}
+.top .sub{color:var(--mute);font-size:13px}
+.top .sp{flex:1}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr);max-width:1240px;margin:0 auto}
+@media(min-width:900px){.wrap{grid-template-columns:minmax(0,1fr) 340px}.side{border-left:1px solid var(--line)}}
+.stage{position:relative;height:clamp(400px,64vh,640px);perspective:1500px;overflow:hidden;touch-action:none;cursor:grab;
+ background:radial-gradient(ellipse at 50% 40%,#1d1838 0%,#0e0c1d 70%)}
+.stage::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+ background-image:radial-gradient(1px 1px at 12% 18%,#fff8,transparent),radial-gradient(1px 1px at 78% 12%,#fff6,transparent),radial-gradient(1.5px 1.5px at 88% 70%,#fff5,transparent),radial-gradient(1px 1px at 30% 82%,#fff6,transparent),radial-gradient(1px 1px at 55% 30%,#fff4,transparent),radial-gradient(1px 1px at 8% 60%,#fff5,transparent)}
+.world{position:absolute;left:50%;top:46%;width:0;height:0;transform-style:preserve-3d;--spin:0}
+.board{position:absolute;width:120px;height:228px;margin:-114px 0 0 -60px;padding:6px;transform-style:preserve-3d;
+ display:grid;grid-template:repeat(6,36px)/repeat(3,36px);background:#120f22;border:1px solid #3a3456;box-shadow:0 0 0 1px #0006}
+.board.mira{border-color:var(--red);box-shadow:0 0 24px #d23a4c40}
+.bl{position:absolute;bottom:100%;left:-1px;padding-bottom:4px;font-size:12px;color:var(--mute);white-space:nowrap;letter-spacing:.02em}
+.mira .bl{color:#ff8494}
+.cell{position:relative;transform-style:preserve-3d}
+.cell.l{background:var(--lc)}.cell.d{background:var(--dc)}
+.cell.tw{box-shadow:inset 0 0 0 2px var(--red)}
+.cell.tb{box-shadow:inset 0 0 0 2px var(--violet)}
+.cell.to{cursor:pointer}
+.dot{position:absolute;inset:13px;border-radius:50%;background:var(--red);transform:translateZ(1px);pointer-events:none}
+.cell.hint .dot{background:#ffd36b;inset:10px}
+.cell.hint .pc{box-shadow:0 0 0 3px #ffd36b,0 0 14px #ffd36b}
+.ghost{position:absolute;inset:8px;opacity:.35;color:var(--red);pointer-events:none}
+.ghost svg{width:100%;height:100%}
+.pc{position:absolute;inset:3px;border-radius:50%;display:grid;place-items:center;transform:translateZ(2px);cursor:pointer;transition:box-shadow .15s}
+.pc.w{background:radial-gradient(circle at 35% 30%,#fffdf6,#d3c9b5);color:#1a1530;box-shadow:0 2px 0 #0008}
+.pc.b{background:radial-gradient(circle at 35% 30%,#3d3655,#0b0915);color:#efe6d6;box-shadow:inset 0 0 0 1.5px #b9314233,0 2px 0 #0008}
+.pc svg{transform:rotate(calc(var(--spin) * -1deg))}
+.pc .o{width:19px;height:19px}
+.pc .in{position:absolute;right:-2px;bottom:-2px;width:13px;height:13px;padding:1.5px;border-radius:50%;background:#16132a;color:#ece6d8;border:1px solid #fff3}
+.pc.mv{box-shadow:0 0 0 1.5px #d23a4c99,0 2px 0 #0008}
+.pc.sel{box-shadow:0 0 0 3px var(--red),0 0 14px var(--red)}
+.pc.cap{box-shadow:0 0 0 3px #ff5a6b;animation:pulse 1s infinite alternate}
+.pc.exp{box-shadow:0 0 0 2.5px #ffb03b;animation:pulse 1s infinite alternate}
+.pc.last{outline:1.5px dashed #ffd36b;outline-offset:1px}
+@keyframes pulse{to{filter:brightness(1.35)}}
+@media(prefers-reduced-motion:reduce){.pc{animation:none!important;transition:none}}
+svg.e{fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.tools{position:absolute;right:10px;bottom:10px;display:flex;gap:6px}
+.tools button,.chip{min-width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:#16132acc;backdrop-filter:blur(6px)}
+.legend{position:absolute;left:12px;bottom:12px;font-size:12px;color:var(--mute);display:grid;gap:2px;pointer-events:none}
+.legend i{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px;border:2px solid}
+.side{padding:16px max(4vw,14px) 20px;display:grid;gap:16px;align-content:start}
+.status{font-family:"Cormorant Garamond",serif;font-size:26px;line-height:1.1}
+.status small{display:block;font:13px/1.4 Inter,sans-serif;color:var(--mute);margin-top:6px}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.btn{height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel)}
+.btn.pri{background:var(--red);border-color:var(--red);color:#fff;font-weight:600}
+.btn:disabled{opacity:.45;cursor:default}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{flex:1;height:40px;border:0;background:transparent;font-size:14px;padding:0 10px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed=true]{background:var(--ink);color:#16132a;font-weight:600}
+.lab{font-size:13px;color:var(--mute);margin:0 0 6px}
+.tog{display:flex;align-items:center;gap:10px;min-height:40px;font-size:14px;cursor:pointer}
+.tog input{width:20px;height:20px;accent-color:var(--red)}
+details.set{border:1px solid var(--line);border-radius:12px;padding:4px 14px;background:var(--panel)}
+details.set summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:500}
+details.set[open]{padding-bottom:14px}
+.log{list-style:none;margin:0;padding:0;font-size:13px;color:var(--mute);display:grid;gap:4px;max-height:180px;overflow:auto}
+.log b{color:var(--ink);font-weight:500}
+.count{display:flex;gap:18px;font-size:14px;color:var(--mute)}
+.count b{color:var(--ink);font-size:20px;font-family:"Cormorant Garamond",serif}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2a2445;border:1px solid var(--line);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;z-index:9}
+.toast.on{opacity:1}
+.over{position:absolute;inset:auto 0 0 0;top:0;display:none;place-items:center;background:#0e0c1dcc;z-index:5}
+.over.on{display:grid}
+.over div{text-align:center;padding:28px;border:1px solid var(--red);background:var(--panel);border-radius:14px}
+.over h2{font-size:40px;margin-bottom:14px}
+.band{padding:clamp(28px,4vw,56px) max(5vw,16px);border-top:1px solid var(--line)}
+.inner{max-width:880px;margin:0 auto}
+.band h2{font-size:clamp(32px,5vw,44px);margin-bottom:8px}
+.band h3{font-size:24px;margin:26px 0 6px;display:flex;gap:10px;align-items:baseline}
+.band h3 span{color:var(--red);font-size:18px}
+.band p,.band li{color:#d6cfde;max-width:68ch}
+.band ul{padding-left:20px}
+.cyc{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0}
+.tk{display:inline-flex;align-items:center;gap:2px;padding:4px 8px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--panel)}
+.tk svg{width:16px;height:16px}
+.tk .sm{width:11px;height:11px;opacity:.7}
+table{border-collapse:collapse;width:100%;max-width:520px;font-size:15px;margin-top:8px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mute);font-weight:500;font-size:13px}
+footer{padding:24px max(5vw,16px);color:var(--mute);font-size:13px;border-top:1px solid var(--line);text-align:center}
+
+[hidden]{display:none!important}
+.tabs{display:flex;gap:4px;margin-left:8px}
+.tabs a{padding:8px 14px;border-radius:10px;color:var(--mute);text-decoration:none;font-weight:500;min-height:40px;display:flex;align-items:center}
+.tabs a[aria-current=page]{background:var(--panel);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+#tarotView{max-width:1240px;margin:0 auto;padding:16px max(4vw,14px) 32px}
+.tq input,.tctl select,.stepper input{font:inherit;font-size:16px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;height:44px;padding:0 12px;width:100%}
+.tq input:focus-visible,.tctl select:focus-visible,.stepper input:focus-visible{outline:2px solid var(--red)}
+.tbar{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start;margin:14px 0}
+@media(max-width:720px){.tbar{grid-template-columns:auto minmax(0,1fr)}.tbar .tctl.lay{grid-column:1/-1}}
+.tctl{display:grid;gap:8px}
+.stepper{display:flex;gap:6px;align-items:center}
+.stepper input{width:72px;text-align:center}
+.stepper button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:20px}
+.pile{position:relative;width:62px;height:99px;margin:6px 10px 26px 0}
+.pile i{position:absolute;inset:0;border-radius:6px;overflow:hidden;box-shadow:0 3px 8px #0009}
+.pile i svg,.pile i img{width:100%;height:100%;display:block;object-fit:cover}
+.pile i:nth-child(2){transform:translate(3px,-3px)}.pile i:nth-child(3){transform:translate(6px,-6px)}
+.pile.riff i:nth-child(1){animation:rl .28s ease-in-out}.pile.riff i:nth-child(3){animation:rr .28s ease-in-out}
+@keyframes rl{50%{transform:translate(-24px,4px) rotate(-9deg)}}@keyframes rr{50%{transform:translate(30px,-8px) rotate(9deg)}}
+.pile.cut i:nth-child(3){animation:ct .4s ease-in-out}@keyframes ct{50%{transform:translate(6px,-40px)}}
+.pile span{position:absolute;top:100%;left:0;margin-top:8px;font-size:12px;color:var(--mute);white-space:nowrap}
+.table{position:relative;aspect-ratio:16/10;border-radius:16px;overflow:hidden;touch-action:none;border:1px solid var(--line);
+ background:radial-gradient(ellipse at 50% 40%,#211b40 0%,#120f24 75%)}
+@media(max-width:600px){.table{aspect-ratio:3/4}}
+.tstatus{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;color:var(--mute);font-size:15px;padding:0 20px;pointer-events:none}
+.tc{position:absolute;width:var(--cw,90px);aspect-ratio:5/8;transform:translate(-50%,-50%) rotate(var(--rot,0deg));container-type:inline-size;
+ transition:left .55s cubic-bezier(.2,.8,.2,1),top .55s cubic-bezier(.2,.8,.2,1),opacity .4s;perspective:900px;cursor:pointer;touch-action:none}
+.tc.drag{transition:none;cursor:grabbing}
+.tc.enter{top:-25%!important;opacity:0}
+.ti{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .6s}
+.tc.up .ti{transform:rotateY(180deg)}
+.tf{position:absolute;inset:0;border-radius:6cqw;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;box-shadow:0 6px 18px #000a}
+.tf svg{display:block}
+.tf.back svg{width:100%;height:100%}
+.tf.front{transform:rotateY(180deg);background:#efe7d4;color:#1b1630}
+.fc{position:absolute;inset:4.5cqw;border:1px solid var(--sc);border-radius:4cqw;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;justify-items:center;align-items:center;padding:3cqw 2cqw 4cqw;
+ background:linear-gradient(180deg,#0000 55%,color-mix(in srgb,var(--sc) 16%,#0000))}
+.tc.rev .fc{transform:rotate(180deg)}
+.fc .cn{font-family:"Cormorant Garamond",serif;font-weight:700;font-size:15cqw;line-height:1;color:var(--sc)}
+.fc svg{width:88%;height:auto;max-height:100%}
+.fc .ct{font-family:"Cormorant Garamond",serif;font-weight:700;font-size:14cqw;line-height:1;text-align:center}
+.fc .cm{font-size:7.5cqw;color:#5b5470;margin-top:1.5cqw;text-align:center;line-height:1.1}
+.tl{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:5px;font-size:11px;color:var(--mute);white-space:nowrap;pointer-events:none}
+.tc.sel .tf.front{box-shadow:0 0 0 2px var(--red),0 6px 18px #000a}
+.tread{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;margin-top:20px}
+@media(min-width:860px){.tread{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}}
+.tdet{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px;min-height:120px}
+.tdet h3{font-size:28px;margin-bottom:4px}
+.tdet .meta{color:var(--mute);font-size:14px;margin-bottom:10px}
+.tdet p{margin:6px 0;color:#d6cfde}
+.tlist{margin:0;padding-left:22px;display:grid;gap:6px;color:#d6cfde}
+.tlist button{background:none;border:0;padding:0;text-align:left;color:inherit;text-decoration:underline;text-decoration-color:#fff3;text-underline-offset:3px}
+.note{font-size:13px;color:var(--mute);margin-top:18px;max-width:70ch}
+.treading{margin-top:20px}
+.treading h3{font-size:30px;margin-bottom:6px}
+.treading h4{font-family:"Cormorant Garamond",serif;font-size:22px;font-weight:600;margin:18px 0 6px}
+.treading p{max-width:72ch}
+.treading .pc-line b{color:var(--ink)}
+.treading .sum{border-left:3px solid var(--red);padding-left:12px}
+.tf.front.night{background:#15112a;color:#ece6d8}
+.night .fc .cm{color:#a59fbf}
+.night .fc svg text{fill:#15112a}
+.tf.front.wood{background:#f3eee2;color:#111}
+.wood .fc{border-width:2px;background:none}
+.wood .fc .cn{color:#a8202f}
+.wood .fc svg *{stroke-width:2.6}
+
+.fc.nf{inset:3.5cqw;padding:2cqw 2cqw 3cqw;grid-template-rows:auto minmax(0,1fr) auto auto;gap:1.2cqw;background:none}
+.fc.nf .cn{font-size:12cqw}
+.fc.nf .ct{font-size:12cqw}
+.fc.nf .cm{font-size:6.5cqw;margin-top:0}
+.scene{width:100%;height:100%;border-radius:2.5cqw;overflow:hidden;box-shadow:0 0 0 1px var(--sc)}
+.scene svg{width:100%;height:100%;display:block}
+.tdet .dscene{float:right;width:120px;margin:0 0 10px 14px;border-radius:8px;overflow:hidden;box-shadow:0 0 0 1px var(--line)}
+.tdet .dscene svg{display:block;width:100%;height:auto}
+.tdet .utext{white-space:pre-wrap}
+.tdet textarea{width:100%;min-height:160px;font:inherit;font-size:16px;line-height:1.5;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}
+.top .btn{height:40px}
+.tdet .lnk{background:none;border:0;padding:0;color:#ff8494;text-decoration:underline;text-underline-offset:3px;font-size:14px;min-height:32px}
+@media(max-width:600px){.tdet .dscene{width:96px}}
+.tf .cimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.tc.rev .tf.front .cimg{transform:rotate(180deg)}
+.tedit{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px;margin:14px 0}
+.tedit h3{font-size:28px;margin-bottom:6px}
+.tedit .nm{display:grid;gap:6px;max-width:420px;margin:10px 0}
+.tedit .nm input{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;height:44px;padding:0 12px}
+label.btn{display:inline-flex;align-items:center;cursor:pointer}
+.egrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:10px;margin-top:14px}
+.eslot{position:relative;aspect-ratio:5/8;border-radius:8px;border:1px dashed var(--line);background:#0e0c1d;overflow:hidden;display:grid;place-items:center;text-align:center;font-size:12px;color:var(--mute);padding:4px}
+.eslot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.eslot b{position:absolute;left:0;right:0;bottom:0;background:#0e0c1dcc;color:var(--ink);font-weight:500;font-size:11px;padding:3px 2px}
+.eslot.has{border-style:solid}
+.eprog{font-size:14px;color:var(--mute);margin-top:8px;min-height:1.4em}
+#installBtn{height:40px;padding:0 12px}
+
+@media(max-width:600px){.top{flex-wrap:wrap;row-gap:6px}.top h1{font-size:22px}.top .sub{display:none}.tabs a{padding:8px 10px}.legend{display:none}.status{font-size:22px}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <symbol id="e0" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M4.5 12h15"/></symbol>
+ <symbol id="e1" viewBox="0 0 24 24"><path d="M8 2.5a4 3.2 0 0 0 8 0"/><circle cx="12" cy="9.5" r="4"/><path d="M12 13.5v8M8.8 18h6.4"/></symbol>
+ <symbol id="e2" viewBox="0 0 24 24"><path d="M12 2.5 18.5 12h-13z"/><path d="M12 12v9.5M8.5 17h7"/></symbol>
+</svg>
+
+<header class="top">
+ <h1>The Star Game</h1><span class="sub">Seven boards · 54 pieces · one goal on Mira</span>
+ <nav class="tabs"><a href="#game" id="tabGame">Game</a><a href="#tarot" id="tabTarot">Tarot</a></nav>
+ <span class="sp"></span>
+ <button class="btn pri" id="installBtn" hidden>Install app</button>
+ <button class="btn" id="toRules">Rules</button>
+</header>
+
+<div class="wrap" id="gameView">
+ <div class="stage" id="stage">
+  <div class="world" id="world"></div>
+  <div class="legend"><span><i style="border-color:var(--red)"></i>White's goal on Mira</span><span><i style="border-color:var(--violet)"></i>Black's goal on Mira</span></div>
+  <div class="tools">
+   <button id="rotL" aria-label="Rotate left">⟲</button>
+   <button id="rotR" aria-label="Rotate right">⟳</button>
+   <button id="zIn" aria-label="Zoom in">+</button>
+   <button id="zOut" aria-label="Zoom out">−</button>
+  </div>
+  <div class="over" id="over"><div><h2 id="overT"></h2><button class="btn pri" id="again">New game</button></div></div>
+ </div>
+
+ <aside class="side">
+  <div class="status" id="status"></div>
+  <div class="row">
+   <button class="btn pri" id="hint">💡 Hint</button>
+   <button class="btn" id="undo">Undo</button>
+   <button class="btn" id="new">New game</button>
+  </div>
+  <div class="count" id="count"></div>
+  <div>
+   <p class="lab">View</p>
+   <div class="seg" data-set="view"><button data-val="spiral">Spiral</button><button data-val="stack">Stack</button><button data-val="flat">Row</button></div>
+  </div>
+  <details class="set">
+   <summary>Game settings</summary>
+   <p class="lab">Rules version</p>
+   <div class="seg" data-set="rules"><button data-val="v1">Version 1</button><button data-val="naos">Naos</button></div>
+   <p class="lab" style="margin-top:12px">Opponent</p>
+   <div class="seg" data-set="mode"><button data-val="ai">Computer</button><button data-val="two">2 players</button><button data-val="solo">Solo</button></div>
+   <div id="humanBox"><p class="lab" style="margin-top:12px">You play</p>
+   <div class="seg" data-set="human"><button data-val="w">White (first)</button><button data-val="b">Black</button></div></div>
+   <p class="lab" style="margin-top:12px">Winning pattern</p>
+   <div class="seg" data-set="exact"><button data-val="0">Colour only</button><button data-val="1">Exact pieces</button></div>
+   <p class="lab" style="margin-top:12px">Time limit on Mira</p>
+   <div class="seg" data-set="miraN"><button data-val="0">None</button><button data-val="3">3 moves</button><button data-val="5">5</button><button data-val="7">7</button></div>
+   <label class="tog" style="margin-top:8px"><input type="checkbox" data-tog="miraCap"> Captures allowed on Mira</label>
+   <label class="tog"><input type="checkbox" data-tog="hints"> Show legal moves</label>
+  </details>
+  <div><p class="lab">Moves</p><ol class="log" id="log"></ol></div>
+ </aside>
+</div>
+
+
+<section id="tarotView" hidden>
+ <div class="tq"><input id="tQ" placeholder="Your question (optional)" aria-label="Your question"></div>
+ <div class="tbar">
+  <div class="pile" id="pile" aria-hidden="true"><i></i><i></i><i></i><span id="pileN">21 cards</span></div>
+  <div class="tctl">
+   <p class="lab" style="margin:0">Shuffles</p>
+   <div class="stepper"><button id="sMinus" aria-label="Fewer shuffles">−</button><input id="sN" type="number" min="1" max="99" value="7" aria-label="Number of shuffles"><button id="sPlus" aria-label="More shuffles">+</button></div>
+   <label class="tog"><input type="checkbox" id="sRev" checked> Allow reversed cards</label>
+   <div class="row"><button class="btn pri" id="tShuffle">Shuffle</button><button class="btn" id="tCut">Cut</button></div>
+  </div>
+  <div class="tctl lay">
+   <p class="lab" style="margin:0">Deck</p>
+   <div class="row" style="flex-wrap:nowrap"><select id="tDeck" aria-label="Deck"></select><button class="btn" id="tEditDeck" hidden>Edit</button></div>
+   <button class="btn" id="tImpOpen" style="justify-self:start">Card texts…</button>
+   <p class="lab" style="margin:4px 0 0">Layout</p>
+   <select id="tSpread" aria-label="Layout"></select>
+   <div class="row"><button class="btn pri" id="tDeal">Deal</button><button class="btn" id="tReveal">Reveal all</button><button class="btn" id="tGather">Gather</button></div>
+  </div>
+ </div>
+ <div class="tedit" id="tEdit" hidden>
+  <h3 id="eTitle">Your own deck</h3>
+  <p class="note" style="margin-top:4px">Choose up to 22 images. They're matched to the cards in file-name order: 0 Physis, I Magickian, II High Priestess … XX Aeon, and the 22nd becomes the card back. Tap any card below to change just that one. Images are resized and kept only on this device. They are never uploaded or shared with the app.</p>
+  <label class="nm"><span class="lab" style="margin:0">Deck name</span><input id="eName" maxlength="40" placeholder="My deck"></label>
+  <div class="row"><label class="btn pri" for="eFiles">Choose images</label><input type="file" id="eFiles" accept="image/*" multiple hidden><button class="btn pri" id="eSave">Save deck</button><button class="btn" id="eCancel">Cancel</button><button class="btn" id="eDel" hidden>Delete deck</button></div>
+  <div class="eprog" id="eProg"></div>
+  <div class="egrid" id="eGrid"></div>
+  <input type="file" id="eOne" accept="image/*" hidden>
+ </div>
+ <div class="tedit" id="tImp" hidden>
+  <h3>Your card texts</h3>
+  <p class="note" style="margin-top:4px">Paste the descriptions for all the cards at once. Start each card on its own line with its number, for example "Atu 0 Physis", "I Magickian" or "XIII - Death", and put its text underneath. The app splits it by card and uses your text in place of the built-in meanings. Your text is saved only on this device.</p>
+  <textarea id="impTxt" placeholder="Atu 0 Physis&#10;Your text for Physis…&#10;&#10;Atu I Magickian&#10;Your text for the Magickian…" style="width:100%;min-height:220px;font:inherit;font-size:16px;line-height:1.5;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0"></textarea>
+  <div class="row"><button class="btn" id="impCheck">Check</button><button class="btn pri" id="impSave" disabled>Save texts</button><button class="btn" id="impCancel">Close</button><button class="btn" id="impClear">Clear all my texts</button></div>
+  <div class="eprog" id="impProg"></div>
+  <ol class="tlist" id="impList" style="margin-top:8px"></ol>
+ </div>
+ <div class="table" id="ttable"><div class="tstatus" id="tStatus"></div></div>
+ <div class="tread">
+  <div class="tdet" id="tDetail"></div>
+  <div><p class="lab">This reading</p><ol class="tlist" id="tList"></ol></div>
+ </div>
+ <div class="tdet treading" id="tReading" hidden></div>
+ <p class="note">The 21 Atu of the Sinister Tarot by Christos Beest, with the titles and names used in that deck. The built-in card faces are original designs made for this app, not the published artwork, and the meanings are summaries in our own words of the descriptions given with the original deck, plus a reversed reading for each card. Choose “Add your own deck” to use your own card images. Tap a card to turn it over, tap it again to read it, and drag cards anywhere on the table.</p>
+</section>
+<section class="band" id="rules"><div class="inner">
+ <h2>The complete rules</h2>
+ <p>Everything you need to play from scratch. These are the <b>Version 1</b> rules, the default. The <a href="#naos-rules" style="color:#ff8494">Naos rules</a> are listed after them and can be switched on in Game settings.</p>
+
+ <h3><span>1</span>Boards</h3>
+ <p>Seven boards sit one above another. From the bottom up: Sirius, Arcturus, Antares, Mira, Rigel, Deneb, Naos. Each board is 6 rows of 3 squares, nine dark and nine light. "Up" and "down" mean the neighbouring boards in that order.</p>
+
+ <h3><span>2</span>Pieces</h3>
+ <p>Each player has 27 pieces in their colour. Every piece combines two of the three alchemical elements: <span class="tk"><svg class="e"><use href="#e0"/></svg> Salt</span> <span class="tk"><svg class="e"><use href="#e1"/></svg> Mercury</span> <span class="tk"><svg class="e"><use href="#e2"/></svg> Sulphur</span></p>
+ <p>The big symbol is the <b>outer</b> element and decides how the piece moves. The small badge is the <b>inner</b> element and doesn't affect movement. A Sulphur (Salt) piece moves like Sulphur.</p>
+
+ <h3><span>3</span>Start</h3>
+ <p>Salt pieces start on Sirius (6) and Arcturus (3), Mercury pieces on Antares (6) and Rigel (3), and Sulphur pieces on Deneb (6) and Naos (3). Black stands on dark squares at the top of each board, White on light squares at the bottom. Mira starts empty. White moves first, then players alternate, moving one piece per turn.</p>
+
+ <h3><span>4</span>How they move</h3>
+ <ul>
+  <li><b>Salt</b>: one step diagonally to a free square on its own board, or to any free square of the same shade on the board directly above or below.</li>
+  <li><b>Mercury</b>: to any free square on its own board, or on a board one or two levels up or down.</li>
+  <li><b>Sulphur</b>: to any free square on any board.</li>
+ </ul>
+ <p>Pieces only land on free squares. Nothing blocks the way, because pieces jump straight to their destination.</p>
+
+ <h3><span>5</span>Transformation</h3>
+ <p>After every move, the piece turns into the next one in the cycle and follows its new movement rule:</p>
+ <div class="cyc" id="cycle"></div>
+ <p>Example: Salt (Sulphur) moves and becomes Mercury (Salt), so from now on it moves like Mercury.</p>
+
+ <h3><span>6</span>Capture</h3>
+ <p>Only a <b>Sulphur (Sulphur)</b> standing on <b>Naos</b> can capture. Instead of moving, it removes any opposing piece on any board except Naos. The captured piece leaves the game, and the capturer stays where it is and becomes Salt (Salt). Capturing is optional.</p>
+
+ <h3><span>7</span>Goal</h3>
+ <p>Each player has three goal squares on Mira, marked by coloured frames: White takes the top triangle, Black the bottom triangle. The first player to occupy all three of their squares wins.</p>
+ <p><b>Colour only</b> (default): any of your pieces counts. <b>Exact pieces</b>: specific phases are needed. White needs Salt (Mercury) top-left, Salt (Salt) top-right and Salt (Sulphur) in the middle. Black needs Salt (Salt) bottom-left, Salt (Mercury) bottom-right and Salt (Sulphur) in the middle. Because a piece changes every time it moves, you have to plan its route through the transformations.</p>
+
+ <h3><span>8</span>Three moves on Mira</h3>
+ <p>A piece may stay on Mira for at most three of its owner's turns, counting the turn it arrived on. When its time is up, it must move on the next turn, either across Mira (which gives it two more turns) or off to another board. Until it moves, no other piece may move. If several pieces are due, move one per turn. So you can hold at most three pieces on Mira at a time, exactly enough for the pattern. Pieces that are due glow amber.</p>
+
+ <h3><span>9</span>Skipping a turn</h3>
+ <p>If a player has no legal move at all (all their pieces are blocked, or a piece whose time on Mira is up has nowhere to go and no other piece may move), they skip the turn and the opponent moves straight away. Nothing needs to be pressed: the app skips automatically and writes "no moves, turn passes" in the log. As soon as a move becomes available, the player moves as usual.</p>
+ <p>If neither player has any moves, the game ends in a draw.</p>
+
+ <h3><span>10</span>Variants</h3>
+ <ul>
+  <li><b>No Mira limit</b>: pieces may stay on Mira as long as they like. The limit can also be set to 5 or 7 moves.</li>
+  <li><b>No captures on Mira</b>: a Sulphur (Sulphur) on Naos cannot capture pieces on Mira. This is the easiest version.</li>
+ </ul>
+ <p>Both switches are in Game settings.</p>
+
+ <h3 id="naos-rules"><span>N</span>Naos rules</h3>
+ <p>The original texts describe the game in two versions that disagree. Version 1 is above. The version printed in <i>Naos</i> changes these rules:</p>
+ <ul>
+  <li><b>Salt</b> moves only within its own board, to any free square.</li>
+  <li><b>Mercury</b> moves to any free square on its own board or on the board directly above or below.</li>
+  <li><b>Sulphur</b> moves as before, to any free square on any board.</li>
+  <li><b>Capture</b>: a Sulphur (Sulphur) on any board can capture an opposing piece anywhere except on Naos. It stays where it is and becomes Salt (Salt).</li>
+  <li><b>Goal</b>: the three pieces on your goal squares must be Salt pieces (Salt outer element).</li>
+  <li><b>Mira limit</b>: the book also allows extending it to five or seven moves (Game settings → Time limit on Mira).</li>
+ </ul>
+ <p>Because Salt can't leave its board in this version, a Salt piece on Mira stays on Mira until it turns into Mercury and can step off.</p>
+
+ <h3><span>?</span>How to move in the app</h3>
+ <p>Tap your piece → red dots show where it can go → tap a dot. A ring around an opposing piece means you can capture it. "💡 Hint" picks a good move for you. Move highlighting can be switched off in Game settings, and then you work out the moves yourself. Drag the background to turn the boards.</p>
+</div></section>
+
+<section class="band" id="about"><div class="inner">
+ <h2>Background</h2>
+ <p>The Star Game comes from the "Septenary" occult tradition, where it is presented as both a strategy game and a symbolic system. Each board stands for one of seven spheres, and the three elements are the alchemical Salt, Mercury and Sulphur.</p>
+ <table><thead><tr><th>#</th><th>Board</th><th>Sphere</th></tr></thead><tbody id="spheres"></tbody></table>
+</div></section>
+
+<footer>The Star Game: an English edition of the seven-board game.</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+{
+const BOARDS = ['Sirius','Arcturus','Antares','Mira','Rigel','Deneb','Naos'];
+const SPHERES = ['Moon','Mercury','Venus','Sun','Mars','Jupiter','Saturn'];
+const EL = ['Salt','Mercury','Sulphur'];
+const MIRA = 3, NAOS = 6;
+const NAME = {w:'White', b:'Black'};
+const TARGETS = {w:[[0,0,1],[0,2,0],[1,1,2]], b:[[5,0,0],[5,2,1],[4,1,2]]};
+const dark = (r,c) => (r+c)%2 === 0;
+const key = (b,r,c) => b*18 + r*3 + c;
+const opp = c => c === 'w' ? 'b' : 'w';
+const sq = (r,c) => 'abc'[c] + (6-r);
+const phaseName = p => `${EL[Math.floor(p/3)]} (${EL[p%3]})`;
+const sym = p => `<svg class="e o"><use href="#e${Math.floor(p/3)}"/></svg><svg class="e in"><use href="#e${p%3}"/></svg>`;
+const $ = id => document.getElementById(id);
+const stage = $('stage'), world = $('world');
+
+let cfg = {mode:'ai', human:'w', view:'spiral', rules:'v1', miraN:'3', miraCap:true, exact:false, hints:true};
+let view = {spin:-20, tilt:54, zoom:1};
+let S = null, hist = [], sel = null, busy = false, hintK = -1, aiTimer = null;
+
+function save(){ try { localStorage.setItem('stargame-en', JSON.stringify({cfg, S})); } catch (e) {} }
+function load(){
+  try { const d = JSON.parse(localStorage.getItem('stargame-en')); if (d && d.cfg) { Object.assign(cfg, d.cfg); if (d.cfg.miraLimit === false && !d.cfg.miraN) cfg.miraN = '0'; delete cfg.miraLimit; } if (d && d.S && Array.isArray(d.S.pieces) && d.S.pieces.length === 54) S = d.S; } catch (e) {}
+}
+
+function newGame(){
+  clearTimeout(aiTimer); busy = false;
+  const pieces = [];
+  const START = [[0,0,6],[1,0,3],[2,1,6],[4,1,3],[5,2,6],[6,2,3]];
+  for (const col of ['w','b']) for (const [b,el,n] of START) {
+    const cells = [];
+    for (let r = 0; r < 6; r++) for (let c = 0; c < 3; c++) if (dark(r,c) === (col === 'b')) cells.push([r,c]);
+    if (col === 'w') cells.reverse();
+    for (let k = 0; k < n; k++) { const [r,c] = cells[k]; pieces.push({col, phase: el*3 + k%3, b, r, c, mira:0, alive:true}); }
+  }
+  S = {pieces, turn:'w', over:null, log:[], last:-1};
+  hist = []; sel = null; hintK = -1;
+  save(); next();
+}
+
+function occOf(st){ const o = new Int16Array(126).fill(-1); st.pieces.forEach((p,i) => { if (p.alive) o[key(p.b,p.r,p.c)] = i; }); return o; }
+
+function pieceMoves(st, o, i, out){
+  const p = st.pieces[i], el = Math.floor(p.phase/3);
+  const add = (b,r,c) => { if (o[key(b,r,c)] < 0) out.push({i, b, r, c}); };
+  const naos = cfg.rules === 'naos';
+  if (naos) {
+    const lo = el === 0 ? p.b : el === 1 ? Math.max(0, p.b-1) : 0, hi = el === 0 ? p.b : el === 1 ? Math.min(6, p.b+1) : 6;
+    for (let b = lo; b <= hi; b++) for (let r = 0; r < 6; r++) for (let c = 0; c < 3; c++) add(b, r, c);
+  } else if (el === 0) {
+    for (const dr of [-1,1]) for (const dc of [-1,1]) { const r = p.r+dr, c = p.c+dc; if (r >= 0 && r < 6 && c >= 0 && c < 3) add(p.b, r, c); }
+    for (const b of [p.b-1, p.b+1]) if (b >= 0 && b < 7) for (let r = 0; r < 6; r++) for (let c = 0; c < 3; c++) if (dark(r,c) === dark(p.r,p.c)) add(b, r, c);
+  } else {
+    const lo = el === 1 ? Math.max(0, p.b-2) : 0, hi = el === 1 ? Math.min(6, p.b+2) : 6;
+    for (let b = lo; b <= hi; b++) for (let r = 0; r < 6; r++) for (let c = 0; c < 3; c++) add(b, r, c);
+  }
+  if (p.phase === 8 && (naos || p.b === NAOS)) st.pieces.forEach((q,j) => { if (q.alive && q.col !== p.col && q.b !== NAOS && (cfg.miraCap || q.b !== MIRA)) out.push({i, cap:j}); });
+}
+
+function expired(st, col){ const ids = [], n = +cfg.miraN; if (!n) return ids; st.pieces.forEach((p,i) => { if (p.alive && p.col === col && p.b === MIRA && p.mira >= n) ids.push(i); }); return ids; }
+
+function legal(st, col){
+  const o = occOf(st), out = [], ex = expired(st, col);
+  if (ex.length) { for (const i of ex) pieceMoves(st, o, i, out); return out.filter(m => m.cap == null); }
+  st.pieces.forEach((p,i) => { if (p.alive && p.col === col) pieceMoves(st, o, i, out); });
+  return out;
+}
+
+const fits = (q, ph) => (!cfg.exact || q.phase === ph) && (cfg.rules !== 'naos' || q.phase < 3);
+function done(st, col){
+  const o = occOf(st);
+  return TARGETS[col].every(([r,c,ph]) => { const i = o[key(MIRA,r,c)]; return i >= 0 && st.pieces[i].col === col && fits(st.pieces[i], ph); });
+}
+
+function apply(st, m, withLog){
+  const n = {turn:st.turn, over:st.over, last:m.i, log: withLog ? st.log.slice() : st.log, pieces: st.pieces.map(p => ({...p}))};
+  const p = n.pieces[m.i]; let txt = '';
+  if (m.cap != null) {
+    const q = n.pieces[m.cap]; q.alive = false;
+    if (withLog) txt = `${phaseName(p.phase)} on Naos captures ${phaseName(q.phase)} on ${BOARDS[q.b]} ${sq(q.r,q.c)}`;
+    p.phase = 0;
+  } else {
+    if (withLog) txt = `${phaseName(p.phase)} ${BOARDS[p.b]} ${sq(p.r,p.c)} → ${BOARDS[m.b]} ${sq(m.r,m.c)}`;
+    p.b = m.b; p.r = m.r; p.c = m.c; p.phase = (p.phase+1) % 9; p.mira = p.b === MIRA ? 1 : 0;
+  }
+  n.pieces.forEach((q,j) => { if (j !== m.i && q.alive && q.col === p.col && q.b === MIRA) q.mira++; });
+  if (withLog) n.log.push({col:p.col, txt});
+  if (done(n, p.col)) n.over = p.col;
+  else if (cfg.mode !== 'solo') n.turn = opp(p.col);
+  return n;
+}
+
+/* ---------- computer opponent ---------- */
+function sideScore(st, o, col){
+  let s = 0;
+  for (const [r,c,ph] of TARGETS[col]) {
+    const i = o[key(MIRA,r,c)]; if (i < 0) continue;
+    const q = st.pieces[i];
+    if (q.col === col) s += fits(q, ph) ? 60 : 12; else s -= 18;
+  }
+  for (const p of st.pieces) {
+    if (!p.alive || p.col !== col) continue;
+    const d = Math.abs(p.b - MIRA), el = Math.floor(p.phase/3);
+    s += 6 - d*0.6;
+    if (p.b === MIRA) s += 4;
+    if (el === 2 || (el === 1 && d <= 2) || (el === 0 && d <= 1)) s += 2.5;
+    if (p.phase === 8 && p.b === NAOS) s += 4;
+  }
+  return s;
+}
+function canReach(p, b, r, c){
+  const el = Math.floor(p.phase/3);
+  if (el === 2) return true;
+  if (cfg.rules === 'naos') return el === 1 ? Math.abs(p.b-b) <= 1 : p.b === b;
+  if (el === 1) return Math.abs(p.b-b) <= 2;
+  if (p.b === b) return Math.abs(p.r-r) === 1 && Math.abs(p.c-c) === 1;
+  return Math.abs(p.b-b) === 1 && dark(r,c) === dark(p.r,p.c);
+}
+function threat(st, o, col){
+  let miss = null, have = 0;
+  for (const t of TARGETS[col]) { const i = o[key(MIRA,t[0],t[1])]; if (i >= 0 && st.pieces[i].col === col && fits(st.pieces[i], t[2])) have++; else if (i < 0) miss = t; }
+  if (have !== 2 || !miss) return false;
+  return st.pieces.some(p => p.alive && p.col === col && !(p.b === MIRA && TARGETS[col].some(t => t[0] === p.r && t[1] === p.c)) && canReach(p, MIRA, miss[0], miss[1]) && fits({phase:(p.phase+1) % 9}, miss[2]));
+}
+function evalFor(st, me){
+  if (st.over === me) return 1e7;
+  const o = occOf(st), them = opp(me);
+  let s = sideScore(st, o, me) - sideScore(st, o, them);
+  if (cfg.mode !== 'solo' && threat(st, o, them)) s -= 5e4;
+  return s;
+}
+function best(st, col){
+  const ms = legal(st, col); let bm = ms[0], bs = -Infinity;
+  for (const m of ms) { const v = evalFor(apply(st, m, false), col) + Math.random()*1.5; if (v > bs) { bs = v; bm = m; } }
+  return bm;
+}
+
+/* ---------- flow ---------- */
+function humanTurn(){ return !S.over && !(cfg.mode === 'ai' && S.turn !== cfg.human); }
+function next(){
+  if (!S.over) {
+    if (!legal(S, S.turn).length) {
+      if (cfg.mode === 'solo' || !legal(S, opp(S.turn)).length) { S.over = 'draw'; S.log.push({col:S.turn, txt:'No legal moves for either side'}); }
+      else { S.log.push({col:S.turn, txt:'no moves, turn passes'}); S.turn = opp(S.turn); }
+    }
+  }
+  render();
+  if (!S.over && cfg.mode === 'ai' && S.turn !== cfg.human) {
+    busy = true;
+    aiTimer = setTimeout(() => { const mv = best(S, S.turn); busy = false; if (mv) doMove(mv); }, 450);
+  }
+}
+function doMove(m){ hist.push(S); if (hist.length > 300) hist.shift(); S = apply(S, m, true); sel = null; hintK = -1; save(); next(); }
+
+function onCell(k){
+  if (busy || !humanTurn()) return;
+  const o = occOf(S), i = o[k], moves = legal(S, S.turn);
+  if (sel != null) {
+    const m = moves.find(m => m.i === sel && (m.cap != null ? (i >= 0 && m.cap === i) : (i < 0 && key(m.b,m.r,m.c) === k)));
+    if (m) { doMove(m); return; }
+  }
+  if (i >= 0 && S.pieces[i].col === S.turn) {
+    if (moves.some(m => m.i === i)) { sel = sel === i ? null : i; hintK = -1; render(); return; }
+    toast(expired(S, S.turn).length ? 'A piece on Mira must move first' : 'That piece has no legal moves');
+  }
+  sel = null; hintK = -1; render();
+}
+
+/* ---------- drawing ---------- */
+function pos(b){
+  if (cfg.view === 'stack') return [0, (3-b)*12, (b-3)*66];
+  if (cfg.view === 'flat') { const P = [[-195,-125],[-65,-125],[65,-125],[195,-125],[-130,135],[0,135],[130,135]]; return [P[b][0], P[b][1], 0]; }
+  if (b === MIRA) return [0, 0, 0];
+  const k = b < MIRA ? b : b-1, a = Math.PI/2 + k*Math.PI/3;
+  return [Math.round(205*Math.cos(a)), Math.round(245*Math.sin(a)), (b-3)*34];
+}
+function applyView(){
+  const W = stage.clientWidth, H = stage.clientHeight, flat = cfg.view === 'flat';
+  const base = flat ? [540, 560] : cfg.view === 'stack' ? [380, 640] : [560, 620];
+  const s = Math.min(W/base[0], H/base[1], 1.3) * view.zoom;
+  world.style.transform = flat ? `scale(${s})` : `scale(${s}) rotateX(${view.tilt}deg) rotateZ(${view.spin}deg)`;
+  world.style.setProperty('--spin', flat ? 0 : view.spin);
+}
+function render(){
+  const o = occOf(S), my = humanTurn() && !busy;
+  const moves = my ? legal(S, S.turn) : [];
+  const movable = new Set(moves.map(m => m.i)), tgt = new Set(), caps = new Set();
+  if (sel != null) for (const m of moves) if (m.i === sel) { if (m.cap != null) caps.add(m.cap); else tgt.add(key(m.b,m.r,m.c)); }
+  let h = '';
+  for (let b = 0; b < 7; b++) {
+    const [x,y,z] = pos(b);
+    h += `<div class="board${b === MIRA ? ' mira' : ''}" style="transform:translate3d(${x}px,${y}px,${z}px)"><div class="bl">${b+1} · ${BOARDS[b]}</div>`;
+    for (let r = 0; r < 6; r++) for (let c = 0; c < 3; c++) {
+      const k = key(b,r,c), i = o[k];
+      let cls = 'cell ' + (dark(r,c) ? 'd' : 'l'), extra = '';
+      if (b === MIRA) {
+        for (const col of ['w','b']) { const t = TARGETS[col].find(t => t[0] === r && t[1] === c); if (t) { cls += col === 'w' ? ' tw' : ' tb'; if (cfg.exact && i < 0) extra += `<span class="ghost"><svg class="e"><use href="#e${Math.floor(t[2]/3)}"/></svg></span>`; } }
+      }
+      if (tgt.has(k)) { cls += ' to'; if (cfg.hints || k === hintK) extra += '<i class="dot"></i>'; }
+      if (k === hintK) cls += ' hint';
+      if (i >= 0) {
+        const p = S.pieces[i]; let pc = 'pc ' + p.col;
+        if (i === sel) pc += ' sel'; else if (cfg.hints && movable.has(i)) pc += ' mv';
+        if (caps.has(i)) pc += ' cap';
+        if (+cfg.miraN && p.b === MIRA && p.mira >= +cfg.miraN) pc += ' exp';
+        if (i === S.last) pc += ' last';
+        extra += `<div class="${pc}" title="${NAME[p.col]} ${phaseName(p.phase)}">${sym(p.phase)}</div>`;
+      }
+      h += `<div class="${cls}" data-k="${k}">${extra}</div>`;
+    }
+    h += '</div>';
+  }
+  world.innerHTML = h;
+  applyView();
+  renderSide(moves);
+}
+function renderSide(moves){
+  let t, sub = '';
+  if (S.over === 'draw') t = 'Draw';
+  else if (S.over) t = cfg.mode === 'ai' ? (S.over === cfg.human ? 'You win' : 'The computer wins') : `${NAME[S.over]} wins`;
+  else if (cfg.mode === 'ai' && S.turn !== cfg.human) t = 'Computer is thinking…';
+  else t = cfg.mode === 'solo' ? 'Solo: build your pattern' : `${NAME[S.turn]} to move`;
+  if (!S.over) {
+    if (sel != null) { const p = S.pieces[sel]; sub = `Selected ${phaseName(p.phase)}: moves like ${EL[Math.floor(p.phase/3)]}, becomes ${phaseName((p.phase+1)%9)}.`; if (cfg.rules === 'naos' && p.phase === 8) sub += ' It can capture from any board.'; }
+    else if (expired(S, S.turn).length) sub = `A piece on Mira has used its ${cfg.miraN} turns and must move.`;
+    else if (cfg.mode === 'ai' && S.turn === cfg.human) sub = `You are ${NAME[cfg.human]}. Tap a piece to see its moves.`;
+  }
+  $('status').innerHTML = `${t}<small>${sub}</small>`;
+  const n = col => S.pieces.filter(p => p.alive && p.col === col).length;
+  $('count').innerHTML = `<span><b>${n('w')}</b> White</span><span><b>${n('b')}</b> Black</span><span><b>${S.log.length}</b> moves</span>`;
+  $('log').innerHTML = S.log.slice(-40).reverse().map(e => `<li><b>${NAME[e.col]}</b> ${e.txt}</li>`).join('');
+  $('over').classList.toggle('on', !!S.over);
+  $('overT').textContent = S.over ? t : '';
+  $('hint').disabled = !humanTurn() || busy;
+  $('undo').disabled = !hist.length;
+  document.querySelectorAll('.seg').forEach(g => g.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(cfg[g.dataset.set]) === b.dataset.val || (g.dataset.set === 'exact' && (cfg.exact ? '1' : '0') === b.dataset.val))));
+  document.querySelectorAll('[data-tog]').forEach(c => c.checked = !!cfg[c.dataset.tog]);
+  $('humanBox').style.display = cfg.mode === 'ai' ? '' : 'none';
+}
+
+let tt = null;
+function toast(msg){ const el = $('toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => el.classList.remove('on'), 1800); }
+
+/* ---------- input ---------- */
+let drag = null, moved = false;
+stage.addEventListener('pointerdown', e => { if (e.target.closest('.tools,.over')) return; drag = {x:e.clientX, y:e.clientY, s:view.spin, t:view.tilt}; moved = false; });
+addEventListener('pointermove', e => {
+  if (!drag || cfg.view === 'flat') return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!moved && Math.hypot(dx,dy) < 8) return;
+  moved = true; view.spin = drag.s + dx*0.35; view.tilt = Math.max(0, Math.min(78, drag.t - dy*0.3)); applyView();
+});
+addEventListener('pointerup', () => { drag = null; });
+world.addEventListener('click', e => { if (moved) { moved = false; return; } const c = e.target.closest('.cell'); if (c) onCell(+c.dataset.k); });
+stage.addEventListener('wheel', e => { e.preventDefault(); view.zoom = Math.max(.6, Math.min(2.2, view.zoom * (e.deltaY < 0 ? 1.08 : 0.92))); applyView(); }, {passive:false});
+$('rotL').onclick = () => { view.spin -= 30; applyView(); };
+$('rotR').onclick = () => { view.spin += 30; applyView(); };
+$('zIn').onclick = () => { view.zoom = Math.min(2.2, view.zoom*1.15); applyView(); };
+$('zOut').onclick = () => { view.zoom = Math.max(.6, view.zoom/1.15); applyView(); };
+$('new').onclick = $('again').onclick = () => newGame();
+$('hint').onclick = () => {
+  if (!humanTurn() || busy) return;
+  const m = best(S, S.turn); if (!m) return;
+  sel = m.i; hintK = m.cap != null ? key(S.pieces[m.cap].b,S.pieces[m.cap].r,S.pieces[m.cap].c) : key(m.b,m.r,m.c);
+  render(); toast(m.cap != null ? `Hint: capture the piece on ${BOARDS[S.pieces[m.cap].b]} ${sq(S.pieces[m.cap].r,S.pieces[m.cap].c)}` : `Hint: move to ${BOARDS[m.b]} ${sq(m.r,m.c)}`);
+};
+$('undo').onclick = () => {
+  if (!hist.length) return;
+  clearTimeout(aiTimer); busy = false;
+  S = hist.pop();
+  while (cfg.mode === 'ai' && S.turn !== cfg.human && hist.length) S = hist.pop();
+  sel = null; hintK = -1; save(); next();
+};
+document.querySelectorAll('.seg').forEach(g => g.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const k = g.dataset.set, v = b.dataset.val;
+  if (k === 'exact') { cfg.exact = v === '1'; save(); render(); return; }
+  if (k === 'miraN') { cfg.miraN = v; sel = null; save(); render(); return; }
+  if (cfg[k] === v) return;
+  cfg[k] = v;
+  if (k === 'view') { if (v === 'stack') { view.tilt = 62; view.spin = -10; } else if (v === 'spiral') { view.tilt = 54; view.spin = -20; } view.zoom = 1; save(); render(); }
+  else newGame();
+}));
+document.querySelectorAll('[data-tog]').forEach(c => c.addEventListener('change', () => { cfg[c.dataset.tog] = c.checked; save(); sel = null; render(); }));
+new ResizeObserver(applyView).observe(stage);
+
+$('cycle').innerHTML = Array.from({length:9}, (_,p) => `<span class="tk"><svg class="e"><use href="#e${Math.floor(p/3)}"/></svg>(<svg class="e sm"><use href="#e${p%3}"/></svg>)</span>`).join('<span>→</span>') + '<span>→ back to start</span>';
+$('spheres').innerHTML = BOARDS.map((b,i) => `<tr><td>${i+1}</td><td>${b}</td><td>${SPHERES[i]}</td></tr>`).join('');
+
+load();
+if (S) next(); else newGame();
+
+/* ---------- tarot ---------- */
+const ATU = [
+ ['0','Physis','Ga Wath Am','Nature unfolding at its own pace, the source of fate. A reminder that the power within you is greater than it seems','Stagnation, resisting what is natural'],
+ ['I','Magickian','Binan Ath','Working in harmony with the forces around you. Your actions prepare the ground for something larger than yourself','Misused talent, trickery, scattered effort'],
+ ['II','High Priestess','Mactoron','Awareness that carries you past ordinary limits, beyond opposites and beyond time','Secrets kept, ignoring your instincts'],
+ ['III','Mistress of Earth','Davcina','Passion, charm and bold, unscrupulous action used to force change','Possessiveness, manipulation'],
+ ['IV','Lord of Earth','Kthunae','What you start spreads beyond your control. Unexpected factors appear, and a tradition carries on through you','Rigidity, domination, stubbornness'],
+ ['V','Master','Atazoth','Understanding the hidden forces at work well enough to steer them and set large changes in motion','Control for its own sake, arrogance'],
+ ['VI','Lovers','Karu Samsu','Two opposing forces joining. The union plants a change that can remake you, or break you','Imbalance, temptation, indecision'],
+ ['VII','Azoth','Satanas','Change through hardship and opposition. Those who understand the raw forces at work gain control, and those who don\'t are swept away','Being overwhelmed, chaos without purpose'],
+ ['VIII','Change','Nekalah','One form ends so another can begin. Energy is turned into a practical plan, and insight follows','Resisting change, delay'],
+ ['IX','Hermit','Sauroctonos','A pause between stages of change. Withdrawal brings a glimpse of the depths, which can lead to insight or to madness','Isolation, withdrawal'],
+ ['X','Wyrd','Azanigin','A destiny bigger than one person. Long-term aims reshape a society and open a new age','Feeling trapped, a run of bad luck'],
+ ['XI','Desire','Lidagon','Opposing forces fused into one, creating change driven by a hidden purpose','Excess, obsession'],
+ ['XII','Opfer','Vindex','Crossing a threshold and giving yourself over to something larger than your own life','A loss for nothing, martyrdom'],
+ ['XIII','Death','Nythra','Pride and self-deception bring a fall. If the false self is stripped away, someone stronger can emerge','Clinging on, fear of endings'],
+ ['XIV','Hel','Aosoth','Honesty with yourself. Face your flaws and use your gifts for your path, even though the first steps are disruptive','Denial, being stuck in the dark'],
+ ['XV','Deofel','Noctulius','A raw awakening to the vitality of nature. It challenges what is held sacred and frees you from empty ideas','Recklessness, self-destruction'],
+ ['XVI','War','Abatu','Clashing destinies and clouded vision bring doubt, but hardship and loss can still yield wisdom and creativity','Aggression, defeat, wasted energy'],
+ ['XVII','Star','Nemicu','A promise maturing into self-knowledge and purpose. Lasting foundations are laid','Doubt, losing your way'],
+ ['XVIII','Moon','Shugara','The hidden, unsettling parts of the mind. Facing them is a descent that can end in confusion or in rebirth','Illusion, confusion, fear'],
+ ['XIX','Sun','Velpecula','An age at its height. Long efforts bear fruit, and new hopes reach higher','Ego, burnout'],
+ ['XX','Aeon','Naos','Fate taking a new shape: a living, evolving way of life that keeps redrawing its own limits','Unfinished business, a false start']
+];
+const SPH = {Moon:[18,15,13], Mercury:[0,8,16], Venus:[6,14,17], Sun:[7,12,5], Mars:[1,4,9], Jupiter:[11,3,2], Saturn:[10,19,20]};
+const SCOL = {Moon:'#6f7f9e', Mercury:'#9a7a2e', Venus:'#2f8a5f', Sun:'#c08a16', Mars:'#b3263a', Jupiter:'#3d55b8', Saturn:'#5e3f86'};
+const GLY = {Moon:'☽', Mercury:'☿', Venus:'♀', Sun:'☉', Mars:'♂', Jupiter:'♃', Saturn:'♄'};
+const sphereOf = n => Object.keys(SPH).find(k => SPH[k].includes(n));
+const SPREADS = {
+ one:   {name:'Single card', w:26, h:62, pos:[[50,47,'The card']]},
+ three: {name:'Three cards: past, present, future', w:22, h:56, pos:[[20,46,'Past'],[50,46,'Present'],[80,46,'Future']]},
+ cross: {name:'Five-card cross', w:16, h:30, pos:[[50,48,'Present'],[22,48,'Past'],[78,48,'Future'],[50,16,'Above: the aim'],[50,80,'Below: the root']]},
+ tree:  {name:'Seven spheres (Tree of Wyrd)', w:17, h:22, pos:[[50,86,'Moon'],[20,72,'Mercury'],[80,61,'Venus'],[50,48,'Sun'],[20,35,'Mars'],[80,23,'Jupiter'],[50,11,'Saturn']]},
+ celtic:{name:'Celtic cross (10 cards)', w:11.5, h:20, pos:[[34,47,'1 Present'],[34,47,'2 Challenge',90],[34,80,'3 Foundation'],[12,47,'4 Recent past'],[34,14,'5 The aim'],[56,47,'6 Near future'],[84,86,'7 Yourself'],[84,62,'8 Surroundings'],[84,38,'9 Hopes and fears'],[84,13,'10 Outcome']]},
+ free:  {name:'Free table: draw one at a time', w:13, h:24, pos:[]}
+};
+const BACK = `<svg viewBox="0 0 100 160" preserveAspectRatio="none" aria-hidden="true"><rect width="100" height="160" fill="#1b1534"/><rect x="5" y="5" width="90" height="150" rx="5" fill="none" stroke="#d23a4c" stroke-width="1.2"/><rect x="9" y="9" width="82" height="142" rx="3" fill="none" stroke="#d23a4c55" stroke-width=".6"/><g transform="translate(50 80)"><circle r="34" fill="none" stroke="#d23a4c" stroke-width="1"/><path d="${(() => { let d = ''; for (let i = 0; i <= 7; i++) { const a = (-90 + i*3*360/7) * Math.PI/180; d += (i ? 'L' : 'M') + (30*Math.cos(a)).toFixed(2) + ' ' + (30*Math.sin(a)).toFixed(2); } return d + 'Z'; })()}" fill="none" stroke="#ece6d8" stroke-width="1.1" stroke-linejoin="round"/><circle r="5" fill="#d23a4c"/></g><circle cx="50" cy="26" r="2" fill="#ece6d855"/><circle cx="50" cy="134" r="2" fill="#ece6d855"/></svg>`;
+function art(n, c){
+  const pts = 5 + (n % 7), k = Math.max(2, Math.floor((pts-1)/2));
+  let d = '';
+  for (let i = 0; i <= pts; i++) { const a = (-90 + i*k*360/pts) * Math.PI/180; d += (i ? 'L' : 'M') + (34*Math.cos(a)).toFixed(2) + ' ' + (34*Math.sin(a)).toFixed(2); }
+  let rays = '';
+  for (let i = 0; i < n + 3; i++) { const a = i*360/(n+3); rays += `<line x1="0" y1="-38" x2="0" y2="-44" transform="rotate(${a})"/>`; }
+  const sp = sphereOf(n);
+  return `<svg viewBox="-50 -50 100 100" aria-hidden="true"><g stroke="${c}" fill="none"><circle r="46" stroke-width="1"/><g stroke-width="1.2">${rays}</g><path d="${d}Z" fill="${c}" fill-opacity=".12" stroke-width="1.6" stroke-linejoin="round" transform="rotate(${n*17})"/></g><circle r="13" fill="${c}"/><text y="6" text-anchor="middle" font-size="17" fill="#efe7d4" font-family="Georgia,serif">${GLY[sp]}︎</text></svg>`;
+}
+const naosScene = (() => {
+/* ---------- Naos scene illustrations (original drawings from the book's card descriptions) ---------- */
+const f1 = v => Math.round(v*10)/10;
+const P = (d, f, x = '') => `<path d="${d}" fill="${f}" ${x}/>`;
+const C = (x, y, r, f, e = '') => `<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(r)}" fill="${f}" ${e}/>`;
+const E = (x, y, rx, ry, f, e = '') => `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(rx)}" ry="${f1(ry)}" fill="${f}" ${e}/>`;
+const L = (x1, y1, x2, y2, s, w = 1, e = '') => `<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="${s}" stroke-width="${w}" stroke-linecap="round" ${e}/>`;
+const R = (x, y, w, h, f, e = '') => `<rect x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}" fill="${f}" ${e}/>`;
+const G = (t, s) => `<g transform="${t}">${s}</g>`;
+const poly = (pts, f, e = '') => P('M' + pts.map(p => p.map(f1).join(' ')).join('L') + 'Z', f, e);
+const sky = (n, a, b) => `<defs><linearGradient id="sk${n}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs>` + R(0, 0, 100, 120, `url(#sk${n})`);
+const dots = (list, f = '#fff', r = .7) => list.map(([x, y, rr]) => C(x, y, rr || r, f)).join('');
+const moonC = (x, y, r, f = '#f3ecd0') => P(`M${x} ${y-r}A${r} ${r} 0 1 0 ${x} ${y+r}A${f1(r*.7)} ${r} 0 1 1 ${x} ${y-r}Z`, f);
+const sunD = (x, y, r, f = '#f6c544') => C(x, y, r*1.7, f, 'opacity=".22"') + C(x, y, r*1.3, f, 'opacity=".3"') + C(x, y, r, f);
+const glow = (x, y, r, f) => C(x, y, r*2.4, f, 'opacity=".18"') + C(x, y, r*1.6, f, 'opacity=".3"') + C(x, y, r, f);
+const tree = (x, y, h, f = '#2f6b3a', t = '#5a3d24') => R(x-h*.05, y-h*.45, h*.1, h*.45, t) + C(x, y-h*.66, h*.27, f) + C(x-h*.19, y-h*.5, h*.2, f) + C(x+h*.19, y-h*.5, h*.2, f);
+const pine = (x, y, h, f = '#1f3d2a') => poly([[x, y-h], [x-h*.28, y-h*.25], [x+h*.28, y-h*.25]], f) + R(x-h*.04, y-h*.27, h*.08, h*.27, '#3a2a1a');
+const star5 = (x, y, r, f, inv) => { let d = ''; for (let i = 0; i < 5; i++) { const a = ((inv ? 90 : -90) + i*144) * Math.PI/180; d += (i ? 'L' : 'M') + f1(x + r*Math.cos(a)) + ' ' + f1(y + r*Math.sin(a)); } return P(d + 'Z', 'none', `stroke="${f}" stroke-width="${f1(r*.22)}" stroke-linejoin="round"`); };
+const sparkle = (x, y, r, f = '#fff') => P(`M${x} ${y-r}L${f1(x+r*.25)} ${f1(y-r*.25)}L${x+r} ${y}L${f1(x+r*.25)} ${f1(y+r*.25)}L${x} ${y+r}L${f1(x-r*.25)} ${f1(y+r*.25)}L${x-r} ${y}L${f1(x-r*.25)} ${f1(y-r*.25)}Z`, f);
+const tetra = (x, y, s, a = '#8a7bd0', b = '#5b4ea8', e = '') => poly([[x, y-s], [x-s*.9, y+s*.5], [x+s*.2, y+s*.62]], a, e) + poly([[x, y-s], [x+s*.2, y+s*.62], [x+s*.9, y+s*.5]], b, e);
+const chalice = (x, y, s, f = '#d4a62a', rot = 0) => G(`rotate(${rot} ${x} ${y})`, P(`M${f1(x-s)} ${f1(y-s*1.7)}Q${x} ${f1(y-s*.2)} ${f1(x+s)} ${f1(y-s*1.7)}Z`, f) + R(x-s*.12, y-s*.75, s*.24, s*.6, f) + E(x, y-s*.12, s*.6, s*.18, f));
+const skull = (x, y, s, f = '#ece4cf') => C(x, y, s, f) + R(x-s*.55, y+s*.45, s*1.1, s*.6, f) + C(x-s*.38, y+s*.05, s*.25, '#2a2420') + C(x+s*.38, y+s*.05, s*.25, '#2a2420');
+const flower = (x, y, s, c = '#e07aa0', stem = '#3f7d3a') => L(x, y, x, y-s*1.6, stem, s*.25) + [0, 72, 144, 216, 288].map(a => C(x + s*.45*Math.cos(a*Math.PI/180), y-s*1.6 + s*.45*Math.sin(a*Math.PI/180), s*.35, c)).join('') + C(x, y-s*1.6, s*.25, '#f6d24a');
+const butterfly = (x, y, s, c = '#e8a83a') => E(x-s*.55, y-s*.2, s*.55, s*.4, c, `transform="rotate(-25 ${x} ${y})"`) + E(x+s*.55, y-s*.2, s*.55, s*.4, c, `transform="rotate(25 ${x} ${y})"`) + E(x-s*.35, y+s*.35, s*.3, s*.25, c) + E(x+s*.35, y+s*.35, s*.3, s*.25, c) + L(x, y-s*.4, x, y+s*.5, '#2a1a10', s*.15);
+const snake = (x, y, w, f = '#3c8a3c') => P(`M${x} ${y}q${f1(w*.25)} ${f1(-w*.3)} ${f1(w*.5)} 0t${f1(w*.5)} 0`, 'none', `stroke="${f}" stroke-width="${f1(w*.1)}" stroke-linecap="round"`) + C(x+w, y, w*.08, f);
+const fire = (x, y, s) => P(`M${x} ${y}c${f1(-s)} 0 ${f1(-s*.9)} ${f1(-s*1.1)} 0 ${f1(-s*2)}c${f1(s*.1)} ${f1(s*.7)} ${f1(s*.9)} ${f1(s*.9)} ${f1(s*.6)} ${f1(s*1.5)}c${f1(s*.3)} ${f1(s*.3)} ${f1(-s*.1)} ${f1(s*.5)} ${f1(-s*.6)} ${f1(s*.5)}Z`, '#e8662a') + P(`M${x} ${y}c${f1(-s*.5)} 0 ${f1(-s*.45)} ${f1(-s*.6)} 0 ${f1(-s*1.1)}c${f1(s*.05)} ${f1(s*.4)} ${f1(s*.5)} ${f1(s*.5)} ${f1(s*.3)} ${f1(s*.8)}c${f1(s*.15)} ${f1(s*.2)} ${f1(-s*.05)} ${f1(s*.3)} ${f1(-s*.3)} ${f1(s*.3)}Z`, '#f8d24a');
+const bird = (x, y, s, f = '#3a2a1e') => P(`M${f1(x-s)} ${y}Q${f1(x-s*.5)} ${f1(y-s*.55)} ${x} ${y}Q${f1(x+s*.5)} ${f1(y-s*.55)} ${f1(x+s)} ${y}Q${f1(x+s*.45)} ${f1(y-s*.2)} ${x} ${f1(y+s*.28)}Q${f1(x-s*.45)} ${f1(y-s*.2)} ${f1(x-s)} ${y}Z`, f);
+const perched = (x, y, s, f = '#5a3a20', head = '#e8e0d0') => E(x, y-s*.5, s*.35, s*.55, f) + C(x, y-s*1.15, s*.25, head) + poly([[x+s*.2, y-s*1.2], [x+s*.45, y-s*1.08], [x+s*.2, y-s*1.02]], '#e0a82a') + L(x-s*.1, y, x-s*.1, y-s*.1, '#e0a82a', s*.08) + L(x+s*.1, y, x+s*.1, y-s*.1, '#e0a82a', s*.08);
+const sword = (x1, y1, x2, y2, f = '#cfd3d8') => L(x1, y1, x2, y2, f, 1.3) + L(x1 + (y2-y1)*.08, y1 - (x2-x1)*.08 + 0, x1 - (y2-y1)*.08, y1 + (x2-x1)*.08, '#8a6a2a', 1.4);
+const stoneCircle = (cx, cy, rx, ry, n, f = '#8f8a84', back) => { let s = ''; for (let i = 0; i < n; i++) { const a = i*2*Math.PI/n + .3, y = cy + ry*Math.sin(a); if (back !== undefined && (y < cy) !== back) continue; const h = 4 + (y - cy + ry)/ry*1.8; s += R(cx + rx*Math.cos(a) - 1.2, y - h, 2.4, h, f, 'rx=".6"'); } return s; };
+const starGame = (x, y, s) => { let o = ''; for (let i = 0; i < 7; i++) { const cx = x + (i % 2 ? s*.25 : -s*.25), cy = y - i*s*.26; o += poly([[cx-s*.32, cy], [cx, cy-s*.1], [cx+s*.32, cy], [cx, cy+s*.1]], i === 3 ? '#b3263a' : (i % 2 ? '#e8dfc8' : '#3a3456'), 'stroke="#1a1626" stroke-width=".4"'); } return L(x, y+s*.1, x, y - 6*s*.26, '#5a4a3a', .6) + o; };
+
+function person(x, y, h, o = {}){
+  const r = h*.085, hy = y - h + r, sw = h*.12, bw = (o.wide || 1)*h*.2, sy = hy + r*1.7, skin = o.skin || '#e2c2a0', robe = o.robe || '#333';
+  const aL = o.armL || [-sw*.4, h*.3], aR = o.armR || [sw*.4, h*.3];
+  const hL = [x - sw + aL[0], sy + aL[1]], hR = [x + sw + aR[0], sy + aR[1]];
+  let s = '';
+  if (o.longHair) s += R(x - r*1.15, hy, r*2.3, r*3.2, o.longHair, 'rx="2"');
+  if (o.cloak) s += poly([[x - sw*1.35, hy + r*1.3], [x - bw*1.3, y], [x + bw*1.3, y], [x + sw*1.35, hy + r*1.3]], o.cloak);
+  s += poly([[x - sw, hy + r*1.25], [x - bw, y], [x + bw, y], [x + sw, hy + r*1.25]], robe, o.robeOp ? `opacity="${o.robeOp}"` : '');
+  if (o.trim) s += L(x - bw, y - .6, x + bw, y - .6, o.trim, 1.2);
+  if (o.flecks) s += dots([[x-2, y-h*.5], [x+3, y-h*.38], [x-3, y-h*.25], [x+1, y-h*.15], [x+4, y-h*.6]], o.flecks, .55);
+  if (o.belt) s += R(x - bw*.6, y - h*.48, bw*1.2, h*.035, o.belt);
+  const armC = o.arms || robe;
+  s += L(x - sw, sy, hL[0], hL[1], armC, h*.06) + L(x + sw, sy, hR[0], hR[1], armC, h*.06) + C(hL[0], hL[1], h*.03, skin) + C(hR[0], hR[1], h*.03, skin);
+  if (o.hair) s += C(x, hy - r*.15, r*1.12, o.hair);
+  if (o.hood) s += P(`M${f1(x-r*1.5)} ${f1(hy+r*1.4)}Q${f1(x-r*1.6)} ${f1(hy-r*1.9)} ${x} ${f1(hy-r*1.7)}Q${f1(x+r*1.6)} ${f1(hy-r*1.9)} ${f1(x+r*1.5)} ${f1(hy+r*1.4)}Z`, o.hood);
+  s += C(x, hy, r, o.hood ? '#1a1418' : skin);
+  if (o.beard) s += P(`M${f1(x-r*.85)} ${f1(hy+r*.15)}Q${x} ${f1(hy+r*2.5)} ${f1(x+r*.85)} ${f1(hy+r*.15)}Z`, o.beard);
+  if (o.mask) s += R(x - r*.95, hy - r*.4, r*1.9, r*.6, o.mask, 'rx=".5"');
+  return {s, hL, hR, hy, r};
+}
+function beast(x, y, s, o = {}){
+  const d = o.dir || 1, c = o.color || '#7a7a80', by = y - s*.55;
+  if (o.sleep) return E(x, y - s*.18, s*.6, s*.2, c) + C(x + d*s*.55, y - s*.16, s*.17, c) + poly([[x + d*s*.5, y - s*.3], [x + d*s*.56, y - s*.42], [x + d*s*.62, y - s*.3]], c) + P(`M${f1(x - d*s*.55)} ${f1(y - s*.15)}q${f1(-d*s*.25)} ${f1(s*.05)} ${f1(-d*s*.1)} ${f1(s*.12)}`, 'none', `stroke="${c}" stroke-width="${f1(s*.08)}"`);
+  const hx = x + d*s*.68, hy = by - (o.headUp ? s*.4 : s*.2);
+  let r = '';
+  r += P(`M${f1(x - d*s*.55)} ${f1(by - s*.05)}q${f1(-d*s*.3)} ${f1(-s*.1)} ${f1(-d*s*.35)} ${f1(-s*.35)}`, 'none', `stroke="${c}" stroke-width="${f1(s*.09)}" stroke-linecap="round"`);
+  for (const lx of [-.42, -.28, .3, .44]) r += L(x + d*s*lx, by, x + d*s*lx, y, c, s*.09);
+  r += E(x, by, s*.6, s*.22, c);
+  if (o.mane) r += C(hx, hy, s*.3, o.mane);
+  r += L(x + d*s*.45, by - s*.05, hx, hy, c, s*.18) + C(hx, hy, s*.16, c) + poly([[hx + d*s*.1, hy - s*.06], [hx + d*s*.34, hy + s*.04], [hx + d*s*.1, hy + s*.1]], c);
+  if (!o.mane) r += poly([[hx - d*s*.08, hy - s*.1], [hx - d*s*.02, hy - s*.3], [hx + d*s*.06, hy - s*.1]], c);
+  if (o.snarl) r += L(hx + d*s*.14, hy + s*.06, hx + d*s*.3, hy + s*.06, '#f2efe8', s*.04);
+  return r;
+}
+
+const SCENES = [
+/* 0 Physis: young man at a cliff edge at twilight, flute, dog at his heel, butterfly, crescent moon */
+() => { const m = person(46, 84, 34, {robe:'#5f8a4e', hair:'#8a5a2a', armL:[3, 2], armR:[1, 3]});
+  return sky(0, '#2b2357', '#e8a070') + dots([[12,10],[24,18],[60,8],[88,14],[40,24]], '#fff6', .6) + moonC(78, 20, 6)
+  + poly([[0,96],[18,82],[40,90],[64,80],[100,90],[100,120],[0,120]], '#4a3a5a')
+  + P('M38 120L38 88Q41 84 52 84L100 84L100 120Z', '#2a2238')
+  + m.s + L(m.hL[0], m.hL[1], m.hR[0] + 6, m.hR[1] - 7, '#8a5a30', 1) + butterfly(46, m.hy - 10, 3.2)
+  + beast(57, 84, 9, {dir:-1, color:'#c9a87a', headUp:true}); },
+/* I Magickian: black-cloaked young man at an altar, incense, gold chalice and tetrahedron, runed wand raised, one hand pointing down, flowers, stars */
+() => { const m = person(34, 100, 46, {robe:'#151218', cloak:'#0c0a0e', hair:'#3b2a1e', armL:[-3, 18], armR:[7, -16]});
+  return sky(1, '#0d0b24', '#2c2252') + dots([[10,12],[16,16],[22,13],[27,18],[33,15],[62,10],[70,16],[78,12],[86,20],[74,24]], '#fff', .7)
+  + R(0, 96, 100, 24, '#2b3a2a') + R(56, 78, 26, 18, '#4a3f3a') + R(54, 75, 30, 3.5, '#5e534b')
+  + chalice(63, 75, 3.6) + tetra(75, 69, 5, '#8a7bd0', '#5b4ea8')
+  + P('M70 74q-3 -5 0 -9t0 -9t0 -9', 'none', 'stroke="#c9c2d6" stroke-width=".7" opacity=".6"')
+  + m.s + L(m.hR[0], m.hR[1], m.hR[0] + 2, m.hR[1] - 18, '#7a5230', 1.6) + [4, 8, 12].map(k => L(m.hR[0] + .6, m.hR[1] - k - 2, m.hR[0] + 2.6, m.hR[1] - k - 2, '#e8d8a0', .5)).join('')
+  + star5(34, m.hy + m.r*2, 1.3, '#c33a4a', true)
+  + flower(12, 100, 3, '#e07aa0') + flower(19, 101, 2.6, '#f2e08a') + G('rotate(70 50 100)', flower(50, 100, 2.6, '#e07aa0')) + G('rotate(-80 88 101)', flower(88, 101, 2.4, '#f2e08a')); },
+/* II High Priestess: young woman on a mountain ledge, crescent headdress, tetrahedron, violet-glowing cave, flowers on rock, river below, cirrus clouds */
+() => { const w = person(54, 84, 36, {robe:'#ede3d2', longHair:'#2a1d14', armR:[5, 6]});
+  return sky(2, '#4d86d6', '#cfe3f5') + E(26, 16, 18, 1.3, '#fff', 'opacity=".75"') + E(64, 22, 22, 1.1, '#fff', 'opacity=".7"') + E(40, 28, 14, .9, '#fff', 'opacity=".6"')
+  + poly([[0,70],[20,58],[38,66],[52,56],[60,70],[0,120]], '#7d93b0') + P('M0 86Q14 80 8 92T20 104T6 120L0 120Z', '#5a9ad0')
+  + poly([[54,84],[60,16],[100,6],[100,84]], '#5c544f') + glow(80, 64, 8, '#9a5bf0') + E(80, 66, 7, 12, '#3a1f6e')
+  + P('M28 120L28 86Q50 80 100 82L100 120Z', '#706862')
+  + w.s + moonC(54, w.hy - w.r*1.3, 3.2, '#e8eef6') + tetra(66, 80, 4.5, '#cfeaf5', '#8ab9d2')
+  + flower(38, 88, 1.8, '#f2f2f2') + flower(44, 87, 1.6, '#e8b8f0') + flower(84, 88, 1.7, '#f2f2f2'); },
+/* III Mistress of Earth: mature woman seated on a rock, hazel wand flowering at the tip, swan with three young, eagle, skulls with flowers, limb-like trees, valley and mountains */
+() => { const w = person(52, 88, 32, {robe:'#8a2a3a', longHair:'#5a3a22', wide:1.3, armR:[6, -8]});
+  return sky(3, '#9fb7c9', '#eadcc0') + poly([[0,74],[22,56],[40,68],[62,50],[84,66],[100,58],[100,90],[0,90]], '#8a95a8') + R(0, 90, 100, 30, '#4f6b3a')
+  + P('M6 120L8 64Q2 54 0 50M8 70Q16 60 22 58M7 80Q0 74 0 70M8 64Q12 52 18 48', 'none', 'stroke="#4a3626" stroke-width="2.4" stroke-linecap="round"')
+  + E(52, 90, 15, 6, '#7a7065') + w.s
+  + L(w.hR[0], w.hR[1], w.hR[0] + 2, w.hR[1] - 20, '#8a6a3a', 1.1) + flower(w.hR[0] + 2, w.hR[1] - 18, 1.6, '#f0a0c0', '#8a6a3a')
+  + E(30, 98, 6, 3.4, '#fbfbf6') + P('M33 96q4 -6 0 -10', 'none', 'stroke="#fbfbf6" stroke-width="1.6" stroke-linecap="round"') + C(33, 86, 1.4, '#fbfbf6') + poly([[33.8,85.6],[36,86.2],[33.8,86.8]], '#e0902a')
+  + E(22, 102, 2, 1.3, '#bdb8b0') + E(26, 104, 2, 1.3, '#bdb8b0') + E(32, 104, 2, 1.3, '#bdb8b0')
+  + perched(72, 96, 9) + skull(84, 110, 2.6) + flower(84, 108, 2, '#e8e070') + skull(14, 112, 2.4) + flower(15, 110, 2, '#e07aa0'); },
+/* IV Lord of Earth: man in crimson robes trimmed purple, forest, sea and rising sun, a fallen man in a white cloak at his feet, wolf, eagle, glowing tetrahedron */
+() => { const m = person(42, 104, 48, {robe:'#9e1b2b', cloak:'#5b2a6e', trim:'#5b2a6e', hair:'#3a2a1e', beard:'#3a2a1e', armR:[8, -10]});
+  return sky(4, '#f0a870', '#f9e1b8') + sunD(80, 62, 7) + R(0, 60, 100, 9, '#4a76a0')
+  + [8,18,28,38,48,58,68,78,88,98].map((x, i) => pine(x, 74 + (i % 2)*2, 16)).join('') + R(0, 74, 100, 46, '#4a5a34')
+  + bird(52, 24, 7) + E(66, 108, 13, 3, '#f4f2ec') + C(80, 107, 2.6, '#e2c2a0') + sword(66, 108, 62, 96)
+  + m.s + glow(m.hR[0], m.hR[1] - 3, 1.6, '#c44a6a') + tetra(m.hR[0], m.hR[1] - 3, 3.6, '#4a3aa8', '#b3263a')
+  + beast(84, 116, 10, {dir:-1, color:'#6f7078', headUp:true}); },
+/* V Master: bearded man in black, scarlet cloak, silver chain; large tetrahedron in a dark chamber with a young couple kneeling inside; high archway */
+() => { const m = person(20, 108, 50, {robe:'#121014', cloak:'#a3162b', hair:'#2a2020', beard:'#2a2020'});
+  return R(0, 0, 100, 120, '#17121f') + P('M40 54L40 22A10 10 0 0 1 60 22L60 54Z', '#5e5478', 'opacity=".7"') + P('M43 54L43 24A7 7 0 0 1 57 24L57 54Z', '#8a80a8', 'opacity=".5"')
+  + R(0, 100, 100, 20, '#221b2c') + tetra(58, 86, 22, '#3d3560', '#2a2445', 'stroke="#8f83c9" stroke-width=".5"')
+  + E(55, 98, 2.6, 4, '#d9c3a8') + C(55, 92.5, 1.6, '#d9c3a8') + E(61, 98, 2.6, 4, '#c9b098') + C(60, 92.6, 1.6, '#c9b098')
+  + m.s + P(`M${15} ${m.hy + 6}Q20 ${m.hy + 11} 25 ${m.hy + 6}`, 'none', 'stroke="#d8dbe2" stroke-width=".8"'); },
+/* VI Lovers: young couple holding hands in a glade within a stone circle, flower garland, small fire, full moon, snake on a stone, sword dagger robe and chalice cast aside */
+() => { const a = person(40, 100, 30, {robe:'#e8d6be', hair:'#4a3020', armR:[7, -1], arms:'#e8d6be'}), b = person(60, 100, 29, {robe:'#e8d6be', longHair:'#7a4a22', armL:[-7, -1], arms:'#e8d6be'});
+  return sky(6, '#0f1838', '#2e4a66') + C(50, 16, 7, '#f2efe2') + C(50, 16, 10, '#f2efe2', 'opacity=".15"')
+  + tree(8, 80, 34, '#1d3d2a') + tree(92, 80, 34, '#1d3d2a') + tree(24, 76, 26, '#244a30') + tree(76, 76, 26, '#244a30') + R(0, 78, 100, 42, '#24402c')
+  + stoneCircle(50, 98, 36, 9, 9, '#8f8a84', true) + a.s + b.s + [0, 60, 120, 180, 240, 300].map(k => C(60 + 3*Math.cos(k*Math.PI/180), b.hy - 2.5 + 1.2*Math.sin(k*Math.PI/180), .9, '#f0a0c0')).join('')
+  + fire(50, 110, 3.4) + stoneCircle(50, 98, 36, 9, 9, '#8f8a84', false)
+  + P('M15 104q3 -2 0 -4q-3 -2 0 -4q3 -2 0 -4', 'none', 'stroke="#3c8a3c" stroke-width="1.1"')
+  + L(78, 116, 96, 112, '#cfd3d8', 1.2) + L(84, 118, 90, 117, '#cfd3d8', 1) + chalice(92, 118, 2.2, '#d4a62a', 70) + E(8, 117, 6, 1.6, '#7a5a8a'); },
+/* VII Azoth: strong man in skins with axe and club and a chained wolf, plinth with a glowing sphere holding a starry void, white-robed woman with a thurifer, faint green dragon, sunset and crescent moon, red desert */
+() => { const m = person(26, 104, 44, {robe:'#8a6a42', hair:'#3a2616', beard:'#3a2616', armR:[5, -6]}), w = person(74, 104, 40, {robe:'#f2efe8', longHair:'#5a3a22', armL:[-7, 2]});
+  return sky(7, '#3b2448', '#e2793d') + moonC(18, 16, 5) + sunD(80, 82, 8)
+  + P('M58 70c10 -14 24 -10 30 -22c4 -8 -2 -16 6 -20', 'none', 'stroke="#4aa86a" stroke-width="3.5" stroke-linecap="round" opacity=".35"') + C(94, 27, 3, '#4aa86a', 'opacity=".35"')
+  + R(0, 82, 100, 38, '#9a3b22') + E(12, 114, 3, 1, '#7a2a18') + E(88, 112, 4, 1.2, '#7a2a18') + E(50, 116, 3, 1, '#7a2a18')
+  + R(45, 74, 10, 22, '#c9b9a0') + R(43, 72, 14, 3, '#d9cbb4') + glow(50, 66, 6, '#9fd0ff') + C(50, 66, 5, '#120a24') + dots([[48,64],[51,67],[52,64],[49,68]], '#fff', .35)
+  + m.s + L(m.hR[0], m.hR[1] + 3, m.hR[0], m.hR[1] - 12, '#6a4a2a', 1.1) + P(`M${f1(m.hR[0])} ${f1(m.hR[1] - 12)}q5 1 4 6l-4 -2Z`, '#b8bec6')
+  + L(10, 108, 20, 112, '#5a3a20', 1.8) + beast(10, 104, 9, {dir:1, color:'#6f7078'}) + L(m.hL[0], m.hL[1], 15, 98, '#9aa0a8', .6, 'stroke-dasharray="1 .8"')
+  + w.s + L(w.hL[0], w.hL[1], w.hL[0] - 1, w.hL[1] + 8, '#c8b070', .5) + C(w.hL[0] - 1, w.hL[1] + 9.5, 1.8, '#c8a040') + P(`M${f1(w.hL[0] - 1)} ${f1(w.hL[1] + 7)}q-2 -4 0 -7t0 -7`, 'none', 'stroke="#ddd" stroke-width=".6" opacity=".6"'); },
+/* VIII Change: masked woman in green flecked blue beside a large Star Game, placing a piece on a higher board; lush garden left, dry sunlit plain right; fallen piece with a butterfly emerging */
+() => { const w = person(32, 104, 44, {robe:'#3f8a4a', flecks:'#4a8ad0', longHair:'#6a3a1e', mask:'#1c1c24', armR:[9, -9]});
+  return sky(8, '#a9cfe8', '#f6e7b0') + sunD(86, 22, 6, '#f6d24a') + R(0, 84, 50, 36, '#3f7d3a') + R(50, 84, 50, 36, '#d8c16a')
+  + tree(10, 86, 30, '#3a7a3a') + tree(30, 86, 22, '#4a8a3a') + flower(6, 108, 2.4, '#e07aa0') + flower(14, 112, 2, '#f2e08a') + flower(40, 112, 2.2, '#e07aa0')
+  + starGame(62, 100, 26) + w.s + tetra(w.hR[0] + 1, w.hR[1] - 2, 2.2, '#e8dfc8', '#bdb39a')
+  + G('rotate(80 84 110)', tetra(84, 110, 2.6, '#e8dfc8', '#bdb39a')) + butterfly(86, 102, 2.6, '#7ab0e8'); },
+/* IX Hermit: bearded man in brown with leather belt and purse on a snowy ledge, staff and glowing crystal, wolf asleep */
+() => { const m = person(46, 102, 48, {robe:'#6b4a2e', hair:'#b8b0a2', beard:'#d0c8ba', belt:'#3a2616', armL:[-6, -10], armR:[7, -2]});
+  return sky(9, '#6d7f98', '#d7dde6') + poly([[0,80],[16,40],[30,62],[48,26],[66,58],[82,34],[100,64],[100,90],[0,90]], '#9aa6b6')
+  + poly([[12,50],[16,40],[20,50]], '#fff') + poly([[44,34],[48,26],[52,34]], '#fff') + poly([[78,42],[82,34],[86,42]], '#fff')
+  + P('M0 120L0 96Q40 88 100 94L100 120Z', '#8a8f96') + P('M0 98Q40 90 100 96L100 99Q40 93 0 101Z', '#f4f6f8')
+  + m.s + R(m.hR[0] - 5, 102 - 48*.48 + 1.5, 2.6, 3, '#4a3020') + L(m.hL[0], m.hL[1] - 6, m.hL[0] - 1, 102, '#5a3a20', 1.3)
+  + glow(m.hR[0] + 1, m.hR[1] - 2, 1.6, '#bff0ff') + beast(70, 104, 12, {dir:-1, color:'#7a7a80', sleep:true}); },
+/* X Wyrd: great ash tree, three women in long green dresses round a bubbling pool (glowing spheres, a snake, a crystal tetrahedron), hooded figure behind the tree */
+() => { const a = person(20, 108, 36, {robe:'#3f7a46', longHair:'#7a4a22', armR:[8, -6]}), b = person(80, 108, 36, {robe:'#2f6a3a', longHair:'#2a1a14', armL:[-5, 2]}), c = person(50, 94, 30, {robe:'#4a8a52', longHair:'#b8843a', armL:[2, -2], armR:[-2, -2]});
+  return sky(10, '#46584a', '#a8b890') + R(0, 86, 100, 34, '#3a4a30')
+  + person(66, 92, 30, {robe:'#1a1418', hood:'#1a1418', armL:[1, 2], armR:[-1, 2]}).s + R(44, 30, 10, 60, '#5a4a38') + P('M44 90q-6 2 -10 6M54 90q6 2 10 6', 'none', 'stroke="#5a4a38" stroke-width="2"')
+  + E(50, 22, 50, 20, '#3e6b3a') + E(24, 30, 22, 12, '#4a7a42') + E(78, 30, 22, 12, '#4a7a42') + c.s + tetra(50, c.hL[1] - 3, 2.6, '#dff4ff', '#a8d2e8')
+  + E(50, 104, 24, 7, '#2d5a6e') + dots([[44,103],[50,105],[56,102],[47,106]], '#9fd8e8', .8)
+  + a.s + [[34, 96], [40, 99]].map(([x, y]) => glow(x, y, 1, '#ffe08a')).join('') + b.s + P(`M${f1(b.hL[0] - 2)} ${f1(b.hL[1])}c0 -3 4 -3 4 0s-4 3 -4 0`, 'none', 'stroke="#3c8a3c" stroke-width="1"'); },
+/* XI Desire: woman beside a lion with her hand on its head, golden chalice spilling white drops that grow flowers, red-orange desert, deep blue sky, red-yellow horizon, bright star */
+() => { const w = person(34, 104, 44, {robe:'#efe2cc', longHair:'#3a2214', armR:[13, 8], armL:[-6, -6]});
+  return sky(11, '#0d1f5c', '#e0602a') + glow(80, 72, 1.6, '#fff8d0') + sparkle(80, 72, 3.4)
+  + R(0, 78, 100, 42, '#c4552a') + E(16, 86, 6, 2, '#a3401e') + E(88, 90, 8, 2.2, '#a3401e')
+  + beast(66, 106, 20, {dir:-1, color:'#c58a3a', mane:'#8a4a1a'}) + w.s
+  + chalice(w.hL[0], w.hL[1] + 1, 3, '#d4a62a', -50) + dots([[w.hL[0] - 4, w.hL[1] + 4], [w.hL[0] - 5, w.hL[1] + 9], [w.hL[0] - 5.5, w.hL[1] + 14]], '#fff', .7)
+  + flower(16, 108, 2.4, '#fbfbf6') + flower(22, 110, 2, '#fbfbf6'); },
+/* XII Opfer: young man in green hanging upside down by one foot from an oak branch, small spheres falling from his purse, serpent at the root, raven, barren earth */
+() => { const m = person(58, 80, 44, {robe:'#3e7a3e', hair:'#8a5a2a', belt:'#4a3020', armL:[-2, 10], armR:[2, 10]});
+  return sky(12, '#5a4060', '#e0a06a') + R(0, 96, 100, 24, '#8a5a30') + E(30, 104, 10, 1.5, '#6a4220')
+  + R(12, 22, 9, 76, '#4a3626') + P('M20 30Q50 22 86 28L86 31Q50 26 20 35Z', '#4a3626') + C(16, 18, 12, '#3a5a2a') + C(40, 20, 7, '#3a5a2a') + C(74, 22, 6, '#3a5a2a')
+  + L(58, 27, 58, 36, '#c9b48a', .8) + G('rotate(180 58 58)', m.s) + dots([[63, 66], [65, 74], [64, 84]], '#e0b040', 1)
+  + snake(14, 100, 14) + perched(80, 28, 6, '#141214', '#141214'); },
+/* XIII Death: pyramid of skulls near a cliff edge, valley, river and burning forest, torn black flag, tall blonde woman in light Greek armour with bow and quiver, arms folded, grinning dwarf with a knife */
+() => { const w = person(22, 110, 54, {robe:'#c9a85a', hair:'#f0d27a', longHair:'#f0d27a', armL:[9, 2], armR:[-9, 2]}), d = person(44, 110, 22, {robe:'#e0452a', hair:'#7a4a2a', beard:'#7a4a2a', armR:[4, -2]});
+  let pile = ''; [[5, 0], [4, 1], [3, 2], [2, 3], [1, 4]].forEach(([n, row]) => { for (let i = 0; i < n; i++) pile += skull(60 + (i - (n-1)/2)*4.4, 98 - row*4, 1.9); });
+  return sky(13, '#3d8fe0', '#b0d8f6') + poly([[0,70],[30,58],[60,66],[100,54],[100,84],[0,84]], '#6d8a6a') + P('M86 84Q80 76 88 70T84 60', 'none', 'stroke="#5a9ad0" stroke-width="2"')
+  + [70, 76, 82, 88, 94].map(x => pine(x, 72, 9, '#2a3a24') + fire(x, 72, 2.4)).join('') + P('M74 64q-4 -14 4 -26q4 -8 0 -18', 'none', 'stroke="#8a8a8a" stroke-width="5" opacity=".4" stroke-linecap="round"')
+  + P('M0 120L0 86L74 86L70 120Z', '#7a7468') + pile + L(76, 102, 76, 76, '#2a2420', .9) + P('M76 77L88 79L84 82L89 85L76 86Z', '#101010')
+  + w.s + P(`M${f1(w.hy*0 + 13)} ${f1(w.hy + 6)}q-6 14 0 28`, 'none', 'stroke="#7a5230" stroke-width="1"') + R(29, w.hy + 6, 2.4, 10, '#6a4a2a', `transform="rotate(20 30 ${f1(w.hy + 6)})"`)
+  + d.s + L(d.hR[0], d.hR[1], d.hR[0] + 3, d.hR[1] - 2.5, '#cfd3d8', .9); },
+/* XIV Hel: stern woman in a nearly transparent white robe beside a dark tree-ringed lake, throwing coloured crystal spheres; a man's head at the far end; rainbow; bird of prey */
+() => { const w = person(24, 112, 52, {robe:'#f4f4f4', robeOp:.55, longHair:'#2a2a2a', armR:[12, -8]});
+  return sky(14, '#56687a', '#bcc8d0') + ['#e05050', '#e8a040', '#e8e060', '#60b060', '#5080d0', '#8a5ac0'].map((c, i) => P(`M${10 + i*1.6} 60A${40 - i*1.6} ${36 - i*1.6} 0 0 1 ${90 - i*1.6} 60`, 'none', `stroke="${c}" stroke-width="1.6" opacity=".45"`)).join('')
+  + bird(70, 20, 6, '#2a2420') + [6, 16, 28, 40, 52, 64, 76, 88, 98].map((x, i) => pine(x, 82, 18 + (i % 3)*3, '#1d2e24')).join('') + R(0, 82, 100, 38, '#2e3a2c')
+  + E(56, 96, 40, 11, '#141e26') + C(88, 88, 2.4, '#e2c2a0') + C(88, 89, .7, '#3a1a1a')
+  + w.s + [[42, 84, '#e05050'], [48, 88, '#60b0e0'], [54, 92, '#e8e060']].map(([x, y, c]) => glow(x, y, 1, c)).join(''); },
+/* XV Deofel: man on a dais holding a broken chain and flames, embracing couple below, snarling wolf, bearded old man with a horn, inverted pentagram on the dais, broken skull with a flower and butterfly */
+() => { const m = person(50, 80, 40, {robe:'#d9b48f', hair:'#1a1a1a', armL:[-8, -10], armR:[8, -10]}), o = person(14, 110, 34, {robe:'#5a4a3a', hair:'#c8c0b4', beard:'#d8d0c4', armR:[6, -6]});
+  return sky(15, '#1a0f1f', '#4a1f2a') + R(0, 96, 100, 24, '#2a2024') + R(28, 80, 44, 12, '#3a2f35') + R(24, 90, 52, 6, '#332a2f') + star5(50, 86, 4, '#b3263a', true)
+  + m.s + L(m.hL[0], m.hL[1], m.hL[0] - 2, m.hL[1] + 5, '#9aa0a8', .9, 'stroke-dasharray="1.2 .8"') + L(m.hL[0] - 3, m.hL[1] + 7, m.hL[0] - 4, m.hL[1] + 10, '#9aa0a8', .9, 'stroke-dasharray="1.2 .8"') + fire(m.hR[0], m.hR[1] + 1, 3)
+  + E(43, 106, 3, 5, '#e2c2a0') + C(42, 100, 1.9, '#5a3a22') + E(48, 106, 3, 5, '#d4b090') + C(48, 100, 1.9, '#2a1a14')
+  + beast(82, 112, 12, {dir:-1, color:'#5a5a60', snarl:true, headUp:true}) + o.s + P(`M${f1(o.hR[0])} ${f1(o.hR[1])}q5 -1 6 -6`, 'none', 'stroke="#e8dcc0" stroke-width="1.6" stroke-linecap="round"')
+  + skull(64, 114, 2.4) + L(63, 112, 65, 115, '#2a2420', .5) + flower(64, 112, 2, '#e07aa0') + butterfly(64, 104, 2, '#e8a83a'); },
+/* XVI War: castle among rocks, upper tower struck by lightning, falling man and stones, dark sky, young woman in white by the gate, smiling */
+() => { const w = person(30, 108, 26, {robe:'#f2f0ea', longHair:'#6a4a2a'});
+  let cren = ''; for (let i = 0; i < 6; i++) cren += R(26 + i*8, 64, 4, 4, '#6a6470');
+  return sky(16, '#0c0c18', '#2a2438') + poly([[0,120],[0,96],[20,90],[40,96],[60,88],[84,94],[100,90],[100,120]], '#3a3640')
+  + R(26, 68, 48, 30, '#6a6470') + cren + R(44, 28, 14, 42, '#5e5864') + poly([[44,28],[47,22],[50,27],[53,20],[58,28]], '#5e5864') + R(48, 40, 4, 6, '#f8d24a', 'opacity=".7"')
+  + P('M86 0L70 14L78 15L60 28L66 29L54 38', 'none', 'stroke="#fff2a0" stroke-width="1.6" stroke-linejoin="round"')
+  + G('rotate(150 72 46)', person(72, 50, 14, {robe:'#4a4250', hair:'#2a2020'}).s) + R(66, 30, 3, 2.4, '#5e5864') + R(80, 40, 2.4, 2, '#5e5864') + R(62, 58, 2.6, 2, '#5e5864')
+  + P('M44 98L44 86A6 6 0 0 1 56 86L56 98Z', '#141218') + w.s; },
+/* XVII Star: long-haired woman crouched by a stream pouring from a chalice; fertile valley downstream, barren rock upstream; bright blue sky with seven stars in an inverted septagon */
+() => { const w = person(66, 104, 30, {robe:'#efe2cc', longHair:'#3a2214', wide:1.5, armL:[-8, 2]});
+  let st = ''; for (let i = 0; i < 7; i++) { const a = (90 + i*360/7) * Math.PI/180; st += sparkle(50 + 15*Math.cos(a), 26 + 15*Math.sin(a), 2.4); }
+  return sky(17, '#1f5fd0', '#8ac0f2') + st + poly([[0,64],[24,40],[44,58],[64,36],[88,56],[100,46],[100,72],[0,72]], '#8a8580')
+  + R(0, 72, 100, 48, '#4f8a3e') + P('M48 72Q40 84 52 92T44 120L60 120Q54 104 62 94T54 72Z', '#4a9ad8') + tree(14, 100, 22, '#3a7a3a') + flower(84, 116, 2.4, '#f2e08a')
+  + w.s + chalice(w.hL[0] - 1, w.hL[1], 2.6, '#d4a62a', -70) + L(w.hL[0] - 4, w.hL[1] + 1, 58, 106, '#bfe2f8', .8); },
+/* XVIII Moon: yellowish desert path between two crumbling ornate towers with glowing eyes inside, desolate mountains, half-buried book with scorpions, dry water hole with a camel skull, snake from a crack */
+() => { const tw = (x, flip) => R(x, 36, 18, 64, '#6a5e6a') + poly([[x, 36], [x + 4, 30], [x + 7, 35], [x + 11, 28], [x + 14, 34], [x + 18, 30], [x + 18, 36]], '#6a5e6a') + R(x + 5, 48, 8, 12, '#16121a', 'rx="4"') + C(x + 7.5, 53, .7, '#ffe066') + C(x + 10.5, 53, .7, '#ffe066') + R(x + 6, 68, 6, 8, '#2a2430', 'rx="3"') + (flip ? R(x + 18, 70, 3, 6, '#2a1f2a') : R(x - 3, 74, 3, 5, '#2a1f2a'));
+  return sky(18, '#241f3a', '#6a5a70') + C(50, 16, 5, '#f2ecd0', 'opacity=".9"') + poly([[0,72],[20,54],[36,66],[52,50],[70,64],[86,52],[100,64],[100,80],[0,80]], '#4a4250')
+  + R(0, 78, 100, 42, '#8a7a4a') + poly([[46,78],[54,78],[74,120],[26,120]], '#c9b36a') + tw(8, false) + tw(74, true)
+  + poly([[6,112],[22,106],[26,114],[10,118]], '#5a3a22') + poly([[8,111],[22,106],[22,108],[9,113]], '#e8dfc8')
+  + [[12, 106], [24, 112], [6, 116]].map(([x, y]) => E(x, y, 1.4, .8, '#1a1418') + P(`M${x + 1} ${y}q2 -1 1 -3`, 'none', 'stroke="#1a1418" stroke-width=".5"')).join('')
+  + E(82, 110, 11, 4, '#5a4a2a') + E(80, 109, 3, 1.4, '#e8e0cc') + C(77, 108.6, .5, '#2a2420') + P('M60 96l4 4l-2 3l4 5', 'none', 'stroke="#3a2a1a" stroke-width=".6"') + snake(64, 104, 8, '#5a8a3a'); },
+/* XIX Sun: golden sun rising behind snowy mountains, eagle swooping, circle of nine stones, black-robed figures dancing around a fire, imp's head in a hole, bearded man with a staff walking toward the mountains */
+() => { let dancers = ''; [[34, 100], [44, 97], [56, 97], [66, 100], [50, 104]].forEach(([x, y]) => dancers += person(x, y, 12, {robe:'#141214', armL:[-1.5, -4], armR:[1.5, -4], skin:'#d4b090'}).s);
+  return sky(19, '#f0983a', '#fbe7b0') + sunD(50, 50, 13, '#f8c63a') + poly([[0,74],[18,40],[34,62],[50,36],[66,60],[84,38],[100,70],[100,80],[0,80]], '#7e8aa0')
+  + poly([[14,48],[18,40],[22,48]], '#fff') + poly([[46,44],[50,36],[54,44]], '#fff') + poly([[80,46],[84,38],[88,46]], '#fff')
+  + bird(26, 22, 7, '#3a2a1e') + R(0, 78, 100, 42, '#9fae5a') + P('M86 120L80 96Q78 86 72 80', 'none', 'stroke="#c9b880" stroke-width="2"')
+  + stoneCircle(50, 100, 24, 6, 9, '#8f8a84', true) + dancers + fire(50, 102, 3) + stoneCircle(50, 100, 24, 6, 9, '#8f8a84', false)
+  + E(14, 112, 5, 1.8, '#2a2016') + C(14, 110.6, 2, '#b8402a') + P('M12.8 111q1.2 1 2.4 0', 'none', 'stroke="#2a1a10" stroke-width=".4"')
+  + person(76, 88, 12, {robe:'#6b4a2e', beard:'#cfc8bb', armR:[1, -2]}).s + L(78.6, 82, 79.6, 88, '#5a3a20', .6); },
+/* XX Aeon: bearded man in black and a woman in a semi-transparent red robe seated at a table with the Star Game; crumbling ivy-covered building, tall jagged stone, full moon and stars, distant burning city, a rent in the sky with dark shapes emerging */
+() => { const m = person(22, 112, 36, {robe:'#121014', hair:'#2a2020', beard:'#2a2020', wide:1.3, armR:[8, -6]}), w = person(78, 112, 36, {robe:'#c4202f', robeOp:.7, longHair:'#2a1a14', wide:1.3, armL:[-8, -6]});
+  return sky(20, '#0b0a1c', '#2e1c3c') + P('M40 4L46 14L42 20L50 28L46 34L56 30', 'none', 'stroke="#d8c0f0" stroke-width="2" opacity=".75"') + P('M44 12q-6 4 -4 10M50 26q4 4 10 2', 'none', 'stroke="#05040a" stroke-width="2.4" stroke-linecap="round"') + C(41, 22, .5, '#d0ff9a') + C(59, 28, .5, '#d0ff9a')
+  + dots([[12,10],[24,22],[70,12],[86,24],[92,8],[64,40]], '#fff', .6) + C(78, 64, 5.5, '#f2efe2') + glow(36, 74, 2.4, '#e8662a') + [28, 31, 34, 37, 40, 43].map((x, i) => R(x, 70 - (i % 3)*2, 2.4, 6 + (i % 3)*2, '#1a1012')).join('')
+  + R(0, 76, 100, 44, '#2a2430') + R(2, 52, 18, 30, '#6a6470') + poly([[2,52],[8,46],[12,50],[16,44],[20,52]], '#6a6470') + R(7, 64, 5, 8, '#141218') + dots([[4,56],[6,60],[3,66],[18,58],[16,62],[5,72],[18,70]], '#3a7a3a', 1.2)
+  + poly([[86,80],[88,40],[92,48],[94,36],[98,80]], '#4a4452')
+  + m.s + w.s + R(34, 96, 32, 3, '#4a3a2a') + R(36, 99, 2, 12, '#4a3a2a') + R(62, 99, 2, 12, '#4a3a2a') + starGame(50, 94, 14); }
+];
+const sceneCache = {};
+function naosScene(n){ return sceneCache[n] || (sceneCache[n] = `<svg viewBox="0 0 100 120" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${SCENES[n]()}</svg>`); }
+
+return naosScene;
+})();
+const NCOL = {Moon:'#aeb9d4', Mercury:'#d9b35c', Venus:'#6cc79a', Sun:'#f0c24a', Mars:'#ef5a6c', Jupiter:'#8ea0f0', Saturn:'#b893e6'};
+const STYLES = {naos:'Naos scenes', classic:'Emblem (cream)', night:'Emblem (night)', wood:'Emblem (woodcut)'};
+let customDecks = [], deckKey = 'naos';
+const esc = t => String(t).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+function builtinFace(n, st){
+  const [num, title, nm] = ATU[n], sp = sphereOf(n);
+  if (st === 'naos') return `<div class="fc nf" style="--sc:${SCOL[sp]}"><div class="cn">${num}</div><div class="scene">${naosScene(n)}</div><div class="ct">${title}</div><div class="cm">${nm}</div></div>`;
+  const c = st === 'night' ? NCOL[sp] : st === 'wood' ? '#151515' : SCOL[sp];
+  return `<div class="fc" style="--sc:${c}"><div class="cn">${num}</div>${art(n, c)}<div class="ct">${title}</div><div class="cm">${nm}</div></div>`;
+}
+const curCustom = () => deckKey.startsWith('c:') ? customDecks.find(d => 'c:' + d.id === deckKey) : null;
+function frontHTML(n){
+  const d = curCustom();
+  if (d && d.img[n]) return {cls:'custom', html:`<img class="cimg" alt="" src="${d.img[n]}">`};
+  const st = d || !STYLES[deckKey] ? 'naos' : deckKey;
+  return {cls: st, html: builtinFace(n, st)};
+}
+function backHTML(){ const d = curCustom(); return d && d.img[21] ? `<img class="cimg" alt="" src="${d.img[21]}">` : BACK; }
+function face(n){ return builtinFace(n, 'naos'); }
+
+const tv = $('tarotView'), table = $('ttable');
+const rnd = k => { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % k; };
+let T = {deck: ATU.map((_, n) => ({n, rev:false})), dealt: [], shuffled: 0, cut: false, sel: -1};
+let tBusy = false, zTop = 10;
+try { const v = JSON.parse(localStorage.getItem('stargame-tarot') || 'null'); if (v) { $('sN').value = v.n || 7; $('sRev').checked = v.rev !== false; } } catch (e) {}
+const tSave = () => { try { localStorage.setItem('stargame-tarot', JSON.stringify({n: +$('sN').value, rev: $('sRev').checked, deck: deckKey})); } catch (e) {} };
+$('tSpread').innerHTML = Object.entries(SPREADS).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
+$('tSpread').value = 'three';
+
+const sleep = ms => new Promise(res => setTimeout(res, ms));
+let userText = {}, editing = -1;
+try { userText = JSON.parse(localStorage.getItem('stargame-tarot-text') || '{}') || {}; } catch (e) {}
+const saveText = () => { try { localStorage.setItem('stargame-tarot-text', JSON.stringify(userText)); } catch (e) {} };
+
+function riffle(deck){
+  let cut = 0; for (let i = 0; i < deck.length; i++) cut += rnd(2);
+  let L = deck.slice(0, cut), R = deck.slice(cut);
+  if ($('sRev').checked && rnd(2)) R = R.reverse().map(c => ({...c, rev: !c.rev}));
+  const out = [];
+  while (L.length || R.length) out.push(rnd(L.length + R.length) < L.length ? L.shift() : R.shift());
+  return out;
+}
+function gatherAll(){ T.deck = T.deck.concat(T.dealt.map(c => ({n:c.n, rev:c.rev}))); T.dealt = []; T.sel = -1; }
+function tStatus(msg){ $('tStatus').textContent = msg; }
+function cardW(){ const sp = SPREADS[$('tSpread').value], W = table.clientWidth, H = table.clientHeight; return Math.min(sp.w*W/100, sp.h*H/100/1.6, 170); }
+
+function tRender(){
+  table.style.setProperty('--cw', cardW() + 'px');
+  const seen = new Set();
+  T.dealt.forEach((c, i) => {
+    seen.add(String(c.n));
+    let el = table.querySelector(`.tc[data-n="${c.n}"]`);
+    if (!el) {
+      el = document.createElement('div'); el.className = 'tc enter'; el.dataset.n = c.n; el.style.zIndex = ++zTop;
+      el.innerHTML = `<div class="ti"><div class="tf back"></div><div class="tf front"></div></div><span class="tl"></span>`;
+      el.style.left = c.x + '%'; el.style.top = c.y + '%';
+      table.appendChild(el);
+      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('enter')));
+    }
+    if (el.dataset.deck !== deckKey + (curCustom() ? curCustom().v : '')) {
+      el.dataset.deck = deckKey + (curCustom() ? curCustom().v : '');
+      const f = frontHTML(c.n);
+      el.querySelector('.tf.front').className = 'tf front ' + f.cls;
+      el.querySelector('.tf.front').innerHTML = f.html;
+      el.querySelector('.tf.back').innerHTML = backHTML();
+    }
+    el.style.left = c.x + '%'; el.style.top = c.y + '%';
+    el.style.setProperty('--rot', (c.rot || 0) + 'deg');
+    el.classList.toggle('up', c.up); el.classList.toggle('rev', c.rev); el.classList.toggle('sel', T.sel === c.n);
+    el.querySelector('.tl').textContent = c.label || '';
+    el.setAttribute('aria-label', c.up ? `${ATU[c.n][1]}${c.rev ? ' reversed' : ''}` : 'Face-down card');
+  });
+  table.querySelectorAll('.tc').forEach(el => { if (!seen.has(el.dataset.n)) el.remove(); });
+  const pk = deckKey + (curCustom() ? curCustom().v : ''); $('pile').querySelectorAll('i').forEach(i => { if (i.dataset.k !== pk) { i.dataset.k = pk; i.innerHTML = backHTML(); } });
+  $('pileN').textContent = T.deck.length + (T.deck.length === 1 ? ' card' : ' cards');
+  $('pile').style.visibility = T.deck.length ? '' : 'hidden';
+  if (!T.dealt.length) tStatus(T.shuffled ? `Shuffled ${T.shuffled} time${T.shuffled === 1 ? '' : 's'}${T.cut ? ' and cut' : ''}. Choose a layout and deal.` : 'Think of your question, choose how many times to shuffle, then shuffle the deck.');
+  else tStatus('');
+  const up = T.dealt.filter(c => c.up);
+  $('tList').innerHTML = up.length ? up.map(c => `<li><button data-n="${c.n}">${c.label ? c.label + ': ' : ''}${ATU[c.n][0]} ${ATU[c.n][1]}${c.rev ? ' (reversed)' : ''}</button></li>`).join('') : '<li style="list-style:none;margin-left:-22px;color:var(--mute)">Turned cards appear here.</li>';
+  const s = T.dealt.find(c => c.n === T.sel);
+  if (editing >= 0 && (!s || s.n !== editing)) editing = -1;
+  if (s && editing === s.n && $('tTxt')) { /* keep the editor as it is */ }
+  else if (s) {
+    const [num, title, nm, upm, revm] = ATU[s.n], sp = sphereOf(s.n);
+    const own = userText[s.n];
+    const pic = `<div class="dscene">${naosScene(s.n)}</div>`;
+    const head = `${pic}<h3>${num} · ${title}</h3><div class="meta">${nm} · Sphere of ${sp}${s.label ? ' · ' + s.label : ''} · ${s.rev ? 'Reversed' : 'Upright'}</div>`;
+    if (editing === s.n) {
+      $('tDetail').innerHTML = head + `<p class="meta" style="clear:none">Type or paste your own text for this card. It's saved only on this device.</p><textarea id="tTxt" aria-label="Your text for ${esc(title)}"></textarea><div class="row"><button class="btn pri" id="tTxtSave">Save</button><button class="btn" id="tTxtCancel">Cancel</button>${own ? '<button class="btn" id="tTxtReset">Use built-in text</button>' : ''}</div>`;
+      $('tTxt').value = own || ''; $('tTxt').focus();
+      $('tTxtSave').onclick = () => { const v = $('tTxt').value.trim(); if (v) userText[s.n] = v; else delete userText[s.n]; saveText(); editing = -1; tRender(); };
+      $('tTxtCancel').onclick = () => { editing = -1; tRender(); };
+      if (own) $('tTxtReset').onclick = () => { delete userText[s.n]; saveText(); editing = -1; tRender(); };
+    } else {
+      $('tDetail').innerHTML = head + (own ? `<p class="utext"></p>` : `<p><b>Meaning:</b> ${upm}.</p>`) + `<p${s.rev ? '' : ' style="color:var(--mute)"'}><b>Reversed:</b> ${revm}.</p><button class="lnk" id="tEditTxt">${own ? 'Edit your text' : 'Edit text'}</button>`;
+      if (own) $('tDetail').querySelector('.utext').textContent = own;
+      $('tEditTxt').onclick = () => { editing = s.n; tRender(); };
+    }
+  } else {
+    const q = $('tQ').value.trim();
+    $('tDetail').innerHTML = `<h3>${q ? '“' + esc(q) + '”' : 'Your reading'}</h3><p class="meta">${T.dealt.length ? 'Tap a card to turn it over, then tap it again to read its meaning here.' : 'Nothing dealt yet.'}</p>`;
+  }
+  $('tShuffle').disabled = $('tCut').disabled = tBusy;
+  $('tDeal').disabled = tBusy || (!T.deck.length);
+  $('tDeal').textContent = $('tSpread').value === 'free' ? 'Draw a card' : 'Deal';
+  $('tReveal').disabled = tBusy || !T.dealt.some(c => !c.up);
+  $('tGather').disabled = tBusy || !T.dealt.length;
+  renderReading();
+}
+
+$('tShuffle').onclick = async () => {
+  if (tBusy) return;
+  let n = Math.max(1, Math.min(99, Math.round(+$('sN').value || 7))); $('sN').value = n; tSave();
+  gatherAll(); tBusy = true; tRender();
+  const fast = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  for (let i = 1; i <= n; i++) {
+    T.deck = riffle(T.deck);
+    tStatus(`Shuffling ${i} of ${n}…`);
+    if (!fast) { $('pile').classList.add('riff'); await sleep(n > 25 ? 150 : 290); $('pile').classList.remove('riff'); await sleep(40); }
+  }
+  T.shuffled = n; T.cut = false; tBusy = false; tRender();
+};
+$('tCut').onclick = async () => {
+  if (tBusy || !T.deck.length) return;
+  if (T.dealt.length) gatherAll();
+  const len = T.deck.length, k = Math.max(1, Math.round(len*0.3) + rnd(Math.max(1, Math.round(len*0.4))));
+  T.deck = T.deck.slice(k).concat(T.deck.slice(0, k)); T.cut = true;
+  $('pile').classList.add('cut'); await sleep(400); $('pile').classList.remove('cut');
+  tRender(); tStatus(`Cut at card ${k}. Choose a layout and deal.`);
+};
+$('tDeal').onclick = async () => {
+  if (tBusy || !T.deck.length) return;
+  const key = $('tSpread').value, sp = SPREADS[key];
+  if (key === 'free') {
+    const c = T.deck.shift(), k = T.dealt.length;
+    T.dealt.push({...c, x: 20 + (k*13) % 62, y: 30 + (Math.floor(k*13/62)*22) % 50, up:false, label:`Card ${k+1}`});
+    tRender(); return;
+  }
+  if (T.dealt.length) gatherAll();
+  if (T.deck.length < sp.pos.length) { tStatus('Not enough cards'); return; }
+  tBusy = true; tRender();
+  for (const [x, y, label, rot] of sp.pos) { const c = T.deck.shift(); T.dealt.push({...c, x, y, label, rot: rot || 0, up:false}); tRender(); await sleep(180); }
+  tBusy = false; tRender();
+};
+$('tReveal').onclick = async () => { for (const c of T.dealt) if (!c.up) { c.up = true; tRender(); await sleep(140); } };
+$('tGather').onclick = () => { gatherAll(); T.shuffled = 0; T.cut = false; tRender(); };
+$('sMinus').onclick = () => { $('sN').value = Math.max(1, (+$('sN').value || 7) - 1); tSave(); };
+$('sPlus').onclick = () => { $('sN').value = Math.min(99, (+$('sN').value || 7) + 1); tSave(); };
+$('sN').onchange = $('sRev').onchange = tSave;
+$('tSpread').onchange = () => tRender();
+$('tQ').oninput = () => { if (T.sel < 0) tRender(); };
+$('tList').onclick = e => { const b = e.target.closest('button'); if (b) { T.sel = +b.dataset.n; tRender(); $('tDetail').scrollIntoView({block:'nearest', behavior:'smooth'}); } };
+
+let td = null;
+table.addEventListener('pointerdown', e => {
+  const el = e.target.closest('.tc'); if (!el || tBusy) return;
+  const r = table.getBoundingClientRect();
+  td = {el, n: +el.dataset.n, sx: e.clientX, sy: e.clientY, r, moved: false};
+  el.setPointerCapture(e.pointerId); el.style.zIndex = ++zTop;
+});
+table.addEventListener('pointermove', e => {
+  if (!td) return;
+  if (!td.moved && Math.hypot(e.clientX - td.sx, e.clientY - td.sy) < 6) return;
+  td.moved = true; td.el.classList.add('drag');
+  const c = T.dealt.find(c => c.n === td.n);
+  c.x = Math.max(4, Math.min(96, (e.clientX - td.r.left) / td.r.width * 100));
+  c.y = Math.max(6, Math.min(94, (e.clientY - td.r.top) / td.r.height * 100));
+  td.el.style.left = c.x + '%'; td.el.style.top = c.y + '%';
+});
+table.addEventListener('pointerup', () => {
+  if (!td) return;
+  const c = T.dealt.find(c => c.n === td.n); td.el.classList.remove('drag');
+  if (!td.moved && c) { if (!c.up) { c.up = true; T.sel = c.n; } else T.sel = T.sel === c.n ? -1 : c.n; tRender(); }
+  td = null;
+});
+table.addEventListener('pointercancel', () => { if (td) td.el.classList.remove('drag'); td = null; });
+new ResizeObserver(() => { if (!tv.hidden) table.style.setProperty('--cw', cardW() + 'px'); }).observe(table);
+
+
+/* ---------- decks ---------- */
+let dbP = null;
+function db(){
+  if (!dbP) dbP = new Promise((res, rej) => {
+    try { const q = indexedDB.open('stargame-decks', 1); q.onupgradeneeded = () => q.result.createObjectStore('decks', {keyPath:'id'}); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }
+    catch (e) { rej(e); }
+  });
+  return dbP;
+}
+async function dbDo(mode, fn){ const d = await db(); return new Promise((res, rej) => { const tx = d.transaction('decks', mode), st = tx.objectStore('decks'); const q = fn(st); tx.oncomplete = () => res(q && q.result); tx.onerror = () => rej(tx.error); }); }
+let memOnly = false, decksLoaded = false;
+async function loadDecks(){
+  try { customDecks = (await dbDo('readonly', st => st.getAll())) || []; }
+  catch (e) { memOnly = true; }
+  decksLoaded = true; fillDeckSelect();
+}
+function fillDeckSelect(){
+  $('tDeck').innerHTML = Object.entries(STYLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')
+    + customDecks.map(d => `<option value="c:${esc(d.id)}">${esc(d.name)}</option>`).join('')
+    + '<option value="add">+ Add your own deck…</option>';
+  if (decksLoaded && deckKey.startsWith('c:') && !curCustom()) deckKey = 'naos';
+  if (!deckKey.startsWith('c:') && !STYLES[deckKey]) deckKey = 'naos';
+  $('tDeck').value = curCustom() || !deckKey.startsWith('c:') ? deckKey : 'naos';
+  $('tEditDeck').hidden = !curCustom();
+}
+try { const v = JSON.parse(localStorage.getItem('stargame-tarot') || 'null'); if (v && v.deck) deckKey = v.deck; } catch (e) {}
+function saveDeckKey(){ try { const v = JSON.parse(localStorage.getItem('stargame-tarot') || '{}') || {}; v.deck = deckKey; localStorage.setItem('stargame-tarot', JSON.stringify(v)); } catch (e) {} }
+$('tDeck').onchange = () => {
+  const v = $('tDeck').value;
+  if (v === 'add') { $('tDeck').value = deckKey; openEditor(null); return; }
+  deckKey = v; saveDeckKey(); $('tEditDeck').hidden = !curCustom(); tRender();
+};
+$('tEditDeck').onclick = () => openEditor(curCustom());
+
+let ed = null, slotIdx = -1;
+const SLOTN = i => i === 21 ? 'Card back' : `${ATU[i][0]} ${ATU[i][1]}`;
+function openEditor(d){
+  ed = d ? {id:d.id, name:d.name, img:d.img.slice(), isNew:false} : {id: Date.now().toString(36) + rnd(1e6).toString(36), name:'', img:Array(22).fill(null), isNew:true};
+  $('eTitle').textContent = d ? 'Edit deck' : 'Your own deck';
+  $('eName').value = ed.name; $('eDel').hidden = ed.isNew; $('eProg').textContent = memOnly ? 'This browser can’t store images, so this deck will last only until you close the app.' : '';
+  $('tEdit').hidden = false; drawGrid(); $('tEdit').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function drawGrid(){
+  $('eGrid').innerHTML = ed.img.map((src, i) => `<button class="eslot${src ? ' has' : ''}" data-i="${i}" aria-label="Choose image for ${esc(SLOTN(i))}">${src ? `<img alt="" src="${src}">` : ''}<b>${esc(SLOTN(i))}</b>${src ? '' : '<span>Tap to add</span>'}</button>`).join('');
+}
+function shrink(file){
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 900 / Math.max(im.width, im.height)), w = Math.round(im.width*k), h = Math.round(im.height*k);
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(im, 0, 0, w, h); URL.revokeObjectURL(url);
+      res(cv.toDataURL('image/jpeg', 0.86));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('bad image')); };
+    im.src = url;
+  });
+}
+$('eFiles').onchange = async () => {
+  const files = [...$('eFiles').files].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'})).slice(0, 22);
+  let bad = 0;
+  for (let i = 0; i < files.length; i++) {
+    $('eProg').textContent = `Loading image ${i+1} of ${files.length}…`;
+    try { ed.img[i] = await shrink(files[i]); } catch (e) { bad++; }
+    drawGrid();
+  }
+  $('eProg').textContent = `${files.length - bad} image${files.length - bad === 1 ? '' : 's'} added${bad ? `, ${bad} couldn’t be read` : ''}. Check the order below and tap any card to swap it.`;
+  $('eFiles').value = '';
+};
+$('eGrid').onclick = e => { const b = e.target.closest('.eslot'); if (!b) return; slotIdx = +b.dataset.i; $('eOne').click(); };
+$('eOne').onchange = async () => {
+  const f = $('eOne').files[0]; if (!f || slotIdx < 0) return;
+  try { ed.img[slotIdx] = await shrink(f); drawGrid(); } catch (e) { $('eProg').textContent = 'That image couldn’t be read.'; }
+  $('eOne').value = '';
+};
+$('eCancel').onclick = () => { ed = null; $('tEdit').hidden = true; };
+$('eSave').onclick = async () => {
+  if (!ed) return;
+  if (!ed.img.some(Boolean)) { $('eProg').textContent = 'Add at least one image first.'; return; }
+  const d = {id: ed.id, name: ($('eName').value.trim() || 'My deck').slice(0, 40), img: ed.img, v: Date.now()};
+  $('eProg').textContent = 'Saving…';
+  try { if (!memOnly) await dbDo('readwrite', st => st.put(d)); }
+  catch (e) { memOnly = true; }
+  const i = customDecks.findIndex(x => x.id === d.id); if (i >= 0) customDecks[i] = d; else customDecks.push(d);
+  deckKey = 'c:' + d.id; saveDeckKey(); fillDeckSelect();
+  ed = null; $('tEdit').hidden = true; tRender();
+  const missing = d.img.slice(0, 21).filter(x => !x).length;
+  tStatus(missing ? `Deck saved. ${missing} card${missing === 1 ? '' : 's'} without an image will use the built-in design.` : 'Deck saved.');
+};
+let delArm = 0;
+$('eDel').onclick = async () => {
+  if (!ed) return;
+  if (Date.now() - delArm > 3000) { delArm = Date.now(); $('eDel').textContent = 'Tap again to delete'; setTimeout(() => $('eDel').textContent = 'Delete deck', 3000); return; }
+  try { if (!memOnly) await dbDo('readwrite', st => st.delete(ed.id)); } catch (e) {}
+  customDecks = customDecks.filter(x => x.id !== ed.id);
+  if (deckKey === 'c:' + ed.id) deckKey = 'naos';
+  saveDeckKey(); fillDeckSelect(); ed = null; $('tEdit').hidden = true; tRender();
+};
+fillDeckSelect();
+loadDecks().then(() => tRender());
+
+/* ---------- full reading ---------- */
+const SPHQ = {
+ Moon:{q:'instinct, dreams and what lies hidden', proc:'Calcination', pq:'burning away what is no longer needed', tree:'hazel', aeon:'the Primal aeon'},
+ Mercury:{q:'thought, change and communication', proc:'Separation', pq:'sorting what is valuable from what is not', tree:'yew', aeon:'the Hyperborean aeon'},
+ Venus:{q:'love, attraction and union', proc:'Coagulation', pq:'bringing separate things together into one', tree:'black poplar', aeon:'the Sumerian aeon'},
+ Sun:{q:'vitality, will and the self', proc:'Putrefaction', pq:'breaking down so that something new can form', tree:'oak', aeon:'the Hellenic aeon'},
+ Mars:{q:'conflict, energy and courage', proc:'Sublimation', pq:'refining and raising what is coarse', tree:'alder', aeon:'the Western aeon'},
+ Jupiter:{q:'growth, authority and expansion', proc:'Fermentation', pq:'new life rising out of the old', tree:'beech', aeon:'the New Aeon'},
+ Saturn:{q:'time, limits, fate and endings', proc:'Exaltation', pq:'completion and final refinement', tree:'ash', aeon:'what lies beyond the aeons'}
+};
+const POSQ = {
+ 'The card':'This card is the heart of the answer.',
+ 'Past':'What has led to this point.', 'Present':'Where things stand now.', 'Future':'Where things are heading if nothing changes.',
+ 'Above: the aim':'What you are reaching for.', 'Below: the root':'What lies underneath the whole situation.',
+ 'Challenge':'What crosses you or stands in the way.', 'Foundation':'The deeper basis of the situation.', 'Recent past':'What is passing out of your life.',
+ 'The aim':'The best that can come of this.', 'Near future':'What is coming soon.', 'Yourself':'How you are approaching this.',
+ 'Surroundings':'The people and circumstances around you.', 'Hopes and fears':'What you hope for, or fear.', 'Outcome':'Where this is most likely to end up.'
+};
+const FLAGS = {
+ 10:'Wyrd is in the spread: fate is at work here, larger than any single choice you make.',
+ 13:'Death is in the spread: something has to end, or a false picture of yourself has to fall away, before the next stage can begin.',
+ 8:'Change is in the spread: you are at a turning point, and what is ending makes room for something new.',
+ 16:'War is in the spread: expect conflict or doubt, but also the hard-won wisdom that comes out of it.',
+ 20:'Aeon is in the spread: a whole chapter is closing and a new one is opening.',
+ 12:'Opfer is in the spread: something must be given up or a threshold crossed.',
+ 17:'The Star is in the spread: there is real promise here and a sense of purpose to follow.',
+ 9:'The Hermit is in the spread: time alone and reflection will show you what you need to see.'
+};
+const clean = l => (l || '').replace(/^\d+\s+/, '');
+const firstPart = t => t.split(/[.]/)[0].toLowerCase();
+let lastReading = '';
+function renderReading(){
+  const box = $('tReading');
+  const ready = !tBusy && T.dealt.length && T.dealt.every(c => c.up);
+  box.hidden = !ready;
+  if (!ready) { lastReading = ''; return; }
+  const sig = T.dealt.map(c => c.n + (c.rev ? 'r' : '') + c.label).join('|') + JSON.stringify(userText) + $('tQ').value;
+  if (sig === lastReading) return;
+  lastReading = sig;
+  const isTree = $('tSpread').value === 'tree' && T.dealt.every(c => SPHQ[c.label]);
+  const q = $('tQ').value.trim();
+  let h = `<h3>The reading</h3>` + (q ? `<p class="meta">Your question: “${esc(q)}”</p>` : '');
+  h += '<h4>Card by card</h4>';
+  for (const c of T.dealt) {
+    const [num, title, nm, upm, revm] = ATU[c.n], sp = sphereOf(c.n), lab = clean(c.label);
+    let pos = '';
+    if (isTree) pos = `The sphere of ${lab} rules ${SPHQ[lab].q}.` + (sp === lab ? ' This card belongs to this sphere, so its force here is strong and direct.' : ` The card itself comes from ${sp}, bringing ${SPHQ[sp].q} into this part of your life.`);
+    else if (POSQ[lab]) pos = POSQ[lab];
+    const own = userText[c.n];
+    const body = c.rev ? `${revm}. Reversed, its energy is blocked, delayed or turned inward. Upright it would mean: ${upm.charAt(0).toLowerCase() + upm.slice(1)}.` : (own ? esc(own) : upm + '.');
+    h += `<p class="pc-line"><b>${c.label ? esc(c.label) + ': ' : ''}${num} ${title} (${nm})${c.rev ? ', reversed' : ''}.</b> ${pos} ${body}</p>`;
+  }
+  h += '<h4>The pattern</h4>';
+  const tally = {}; T.dealt.forEach(c => { const sp = sphereOf(c.n); tally[sp] = (tally[sp] || 0) + 1; });
+  const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+  if (T.dealt.length === 1) {
+    const sp = ranked[0][0];
+    h += `<p>This card belongs to the sphere of ${sp}, the realm of ${SPHQ[sp].q}. Its alchemical stage is ${SPHQ[sp].proc}: ${SPHQ[sp].pq}. Its tree is the ${SPHQ[sp].tree}, and its age is ${SPHQ[sp].aeon}.</p>`;
+  } else if (ranked[0][1] >= 2 && ranked[0][1] > (ranked[1] ? ranked[1][1] : 0)) {
+    const sp = ranked[0][0];
+    h += `<p>${ranked[0][1]} of your ${T.dealt.length} cards come from the sphere of ${sp}, so ${SPHQ[sp].q} sit at the centre of this. ${sp}'s alchemical stage is ${SPHQ[sp].proc}, ${SPHQ[sp].pq}, and that is the kind of work this situation is asking of you.</p>`;
+  } else if (ranked.length === T.dealt.length) {
+    h += `<p>Every card comes from a different sphere (${ranked.map(r => r[0]).join(', ')}), so this situation touches many parts of your life at once rather than one.</p>`;
+  } else {
+    const tops = ranked.filter(r => r[1] === ranked[0][1]).map(r => r[0]);
+    h += `<p>The spheres of ${tops.join(' and ')} are equally strong here, so the situation is pulled between ${tops.map(t => SPHQ[t].q).join(', and ')}.</p>`;
+  }
+  const missing = Object.keys(SPHQ).filter(k => !tally[k]);
+  if (T.dealt.length >= 5 && missing.length && missing.length <= 3) h += `<p>No card comes from ${missing.join(' or ')}, so ${missing.map(m => SPHQ[m].q.split(',')[0]).join(' and ')} play little part for now.</p>`;
+  const rv = T.dealt.filter(c => c.rev).length;
+  if (T.dealt.length > 1) h += `<p>${rv === 0 ? 'All the cards are upright: the forces at work are open and moving freely.' : rv === T.dealt.length ? 'Every card is reversed: much of this is blocked, hidden, or still forming inside you, and it may take time to show itself.' : rv > T.dealt.length / 2 ? `${rv} of ${T.dealt.length} cards are reversed: more is being held back than is moving freely, so look at what is blocked before pushing ahead.` : `${rv} of ${T.dealt.length} cards ${rv === 1 ? 'is' : 'are'} reversed: most of the forces are moving, with some resistance.`}</p>`;
+  const flags = T.dealt.filter(c => FLAGS[c.n]).map(c => FLAGS[c.n]);
+  if (flags.length) h += flags.map(f => `<p>${f}</p>`).join('');
+  const byLab = l => T.dealt.find(c => clean(c.label) === l);
+  const core = byLab('Present') || byLab('The card') || byLab('Sun') || T.dealt[0];
+  const end = byLab('Outcome') || byLab('Future') || byLab('Saturn') || byLab('Above: the aim') || (T.dealt.length > 1 ? T.dealt[T.dealt.length - 1] : null);
+  const kw = c => firstPart(c.rev ? ATU[c.n][4] : ATU[c.n][3]);
+  h += '<h4>In short</h4>';
+  h += `<p class="sum">${ATU[core.n][1]}${core.rev ? ' (reversed)' : ''} sets the tone: ${kw(core)}.` + (end && end !== core ? ` ${ATU[end.n][1]}${end.rev ? ' (reversed)' : ''} shows where it leads: ${kw(end)}.` : '') + `</p>`;
+  h += `<div class="row" style="margin-top:12px"><button class="btn" id="tCopy">Copy reading</button></div>`;
+  box.innerHTML = h;
+  $('tCopy').onclick = async () => { try { await navigator.clipboard.writeText(box.innerText.replace(/\nCopy reading$/, '')); $('tCopy').textContent = 'Copied'; } catch (e) { $('tCopy').textContent = 'Copy not available here'; } setTimeout(() => { if ($('tCopy')) $('tCopy').textContent = 'Copy reading'; }, 1800); };
+}
+
+/* ---------- bulk import of card texts ---------- */
+const ROM = {i:1,v:5,x:10,l:50};
+function romanToInt(t){ t = t.toLowerCase(); if (t === '0') return 0; if (!/^[ivxl]+$/.test(t)) return -1; let n = 0; for (let i = 0; i < t.length; i++) { const a = ROM[t[i]], b = ROM[t[i+1]] || 0; n += a < b ? -a : a; } return n; }
+const norm = t => t.toLowerCase().replace(/[^a-z]/g, '');
+function parseTexts(txt){
+  const lines = txt.replace(/\r/g, '').split('\n'), heads = [];
+  lines.forEach((ln, li) => {
+    const m = ln.match(/^\s*(atu\s*)?(0|[ivxl]{1,6})\b\s*[-–—:.)]?\s*(.*)$/i);
+    if (!m) return;
+    const n = romanToInt(m[2]); if (n < 0 || n > 20) return;
+    const rest = norm(m[3]), title = norm(ATU[n][1]), alt = norm(ATU[n][1].replace(/ of /, ' of the '));
+    if (m[1] || (rest && (rest.startsWith(title) || rest.startsWith(alt) || rest.startsWith(norm(ATU[n][2]))))) heads.push({li, n, rest: m[3]});
+  });
+  const out = {};
+  heads.forEach((h, k) => {
+    const end = k + 1 < heads.length ? heads[k+1].li : lines.length;
+    let body = lines.slice(h.li + 1, end).join('\n').trim();
+    if (!body) { const after = h.rest.replace(new RegExp('^\\s*' + ATU[h.n][1].replace(/ /g, '\\s*(the\\s*)?') + '\\s*[-–—:]*\\s*', 'i'), '').trim(); body = after; }
+    if (body) out[h.n] = out[h.n] ? out[h.n] + '\n\n' + body : body;
+  });
+  return out;
+}
+let impParsed = null, clearArm = 0;
+$('tImpOpen').onclick = () => { $('tImp').hidden = false; $('impProg').textContent = ''; $('impList').innerHTML = ''; $('impSave').disabled = true; $('tImp').scrollIntoView({behavior:'smooth', block:'start'}); };
+$('impCancel').onclick = () => { $('tImp').hidden = true; };
+$('impTxt').oninput = () => { $('impSave').disabled = true; impParsed = null; };
+$('impCheck').onclick = () => {
+  impParsed = parseTexts($('impTxt').value);
+  const found = Object.keys(impParsed).map(Number).sort((a, b) => a - b), missing = ATU.map((_, i) => i).filter(i => !(i in impParsed));
+  $('impProg').textContent = found.length ? `Found text for ${found.length} of 21 cards.` + (missing.length ? ` Not found: ${missing.map(i => ATU[i][0] + ' ' + ATU[i][1]).join(', ')}. Those keep their current text.` : '') : 'No cards found. Start each card on its own line with its number, like "Atu 0 Physis" or "XIII Death".';
+  $('impList').innerHTML = found.map(i => `<li><b>${ATU[i][0]} ${ATU[i][1]}</b>: ${esc(impParsed[i].slice(0, 90))}${impParsed[i].length > 90 ? '…' : ''}</li>`).join('');
+  $('impSave').disabled = !found.length;
+};
+$('impSave').onclick = () => {
+  if (!impParsed) return;
+  Object.assign(userText, impParsed); saveText(); lastReading = '';
+  $('impProg').textContent = `Saved ${Object.keys(impParsed).length} card texts. They now show in each card's reading.`;
+  $('impSave').disabled = true; tRender();
+};
+$('impClear').onclick = () => {
+  if (Date.now() - clearArm > 3000) { clearArm = Date.now(); $('impClear').textContent = 'Tap again to clear'; setTimeout(() => $('impClear').textContent = 'Clear all my texts', 3000); return; }
+  userText = {}; saveText(); lastReading = ''; $('impProg').textContent = 'Your texts were cleared. The built-in meanings are back.'; tRender();
+};
+
+function route(){
+  const t = location.hash === '#tarot';
+  tv.hidden = !t;
+  for (const id of ['gameView','rules','about']) $(id).hidden = t;
+  $('tabGame').setAttribute('aria-current', t ? 'false' : 'page');
+  $('tabTarot').setAttribute('aria-current', t ? 'page' : 'false');
+  if (t) tRender(); else applyView();
+}
+addEventListener('hashchange', route);
+$('toRules').onclick = () => { if (location.hash === '#tarot') { location.hash = '#game'; route(); } $('rules').scrollIntoView({behavior:'smooth'}); };
+route();
+
+/* ---------- phone app: install + offline ---------- */
+let installEvt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('installBtn').hidden = false; });
+$('installBtn').onclick = async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch (e) {} installEvt = null; $('installBtn').hidden = true; };
+addEventListener('appinstalled', () => { $('installBtn').hidden = true; });
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+}
+</script>
+</body>
+</html>
