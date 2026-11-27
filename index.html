@@ -184,7 +184,7 @@ footer{padding:24px max(5vw,16px);color:var(--mute);font-size:13px;border-top:1p
 .scene{width:100%;height:100%;border-radius:2.5cqw;overflow:hidden;box-shadow:0 0 0 1px var(--sc)}
 .scene svg{width:100%;height:100%;display:block}
 .tdet .dscene{float:right;width:120px;margin:0 0 10px 14px;border-radius:8px;overflow:hidden;box-shadow:0 0 0 1px var(--line)}
-.tdet .dscene svg{display:block;width:100%;height:auto}
+.tdet .dscene svg,.tdet .dscene img{display:block;width:100%;height:auto}
 .tdet .utext{white-space:pre-wrap}
 .tdet textarea{width:100%;min-height:160px;font:inherit;font-size:16px;line-height:1.5;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}
 .top .btn{height:40px}
@@ -1052,7 +1052,7 @@ function tRender(){
   else if (s) {
     const [num, title, nm, upm, revm] = ATU[s.n], sp = sphereOf(s.n);
     const own = userText[s.n];
-    const pic = `<div class="dscene">${naosScene(s.n)}</div>`;
+    const cd = curCustom(), pic = cd && cd.img[s.n] ? `<div class="dscene"><img alt="" src="${cd.img[s.n]}"${s.rev ? ' style="transform:rotate(180deg)"' : ''}></div>` : `<div class="dscene">${naosScene(s.n)}</div>`;
     const head = `${pic}<h3>${num} · ${title}</h3><div class="meta">${nm} · Sphere of ${sp}${s.label ? ' · ' + s.label : ''} · ${s.rev ? 'Reversed' : 'Upright'}</div>`;
     if (editing === s.n) {
       $('tDetail').innerHTML = head + `<p class="meta" style="clear:none">Type or paste your own text for this card. It's saved only on this device.</p><textarea id="tTxt" aria-label="Your text for ${esc(title)}"></textarea><div class="row"><button class="btn pri" id="tTxtSave">Save</button><button class="btn" id="tTxtCancel">Cancel</button>${own ? '<button class="btn" id="tTxtReset">Use built-in text</button>' : ''}</div>`;
