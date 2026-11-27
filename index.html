@@ -167,6 +167,7 @@ footer{padding:24px max(5vw,16px);color:var(--mute);font-size:13px;border-top:1p
 .treading h4{font-family:"Cormorant Garamond",serif;font-size:22px;font-weight:600;margin:18px 0 6px}
 .treading p{max-width:72ch}
 .treading .pc-line b{color:var(--ink)}
+.treading .utext{white-space:pre-wrap}
 .treading .sum{border-left:3px solid var(--red);padding-left:12px}
 .tf.front.night{background:#15112a;color:#ece6d8}
 .night .fc .cm{color:#a59fbf}
@@ -280,7 +281,7 @@ label.btn{display:inline-flex;align-items:center;cursor:pointer}
   <div class="tctl lay">
    <p class="lab" style="margin:0">Deck</p>
    <div class="row" style="flex-wrap:nowrap"><select id="tDeck" aria-label="Deck"></select><button class="btn" id="tEditDeck" hidden>Edit</button></div>
-   <button class="btn" id="tImpOpen" style="justify-self:start">Card texts…</button>
+   <div class="row"><button class="btn" id="tImpOpen">Card texts…</button><button class="btn" id="tSphOpen">Sphere texts…</button><button class="btn" id="tNoteOpen">My notes…</button></div>
    <p class="lab" style="margin:4px 0 0">Layout</p>
    <select id="tSpread" aria-label="Layout"></select>
    <div class="row"><button class="btn pri" id="tDeal">Deal</button><button class="btn" id="tReveal">Reveal all</button><button class="btn" id="tGather">Gather</button></div>
@@ -288,7 +289,7 @@ label.btn{display:inline-flex;align-items:center;cursor:pointer}
  </div>
  <div class="tedit" id="tEdit" hidden>
   <h3 id="eTitle">Your own deck</h3>
-  <p class="note" style="margin-top:4px">Choose up to 22 images. They're matched to the cards in file-name order: 0 Physis, I Magickian, II High Priestess … XX Aeon, and the 22nd becomes the card back. Tap any card below to change just that one. Images are resized and kept only on this device. They are never uploaded or shared with the app.</p>
+  <p class="note" style="margin-top:4px">Choose up to 22 images. Each image goes on the card matching the number at the start of its file name (00 Physis … 20 Aeon, 21 for the card back). Files without a number fill the empty cards in order. Tap any card below to change just that one. Images are resized and kept only on this device. They are never uploaded or shared with the app.</p>
   <label class="nm"><span class="lab" style="margin:0">Deck name</span><input id="eName" maxlength="40" placeholder="My deck"></label>
   <div class="row"><label class="btn pri" for="eFiles">Choose images</label><input type="file" id="eFiles" accept="image/*" multiple hidden><button class="btn pri" id="eSave">Save deck</button><button class="btn" id="eCancel">Cancel</button><button class="btn" id="eDel" hidden>Delete deck</button></div>
   <div class="eprog" id="eProg"></div>
@@ -297,11 +298,26 @@ label.btn{display:inline-flex;align-items:center;cursor:pointer}
  </div>
  <div class="tedit" id="tImp" hidden>
   <h3>Your card texts</h3>
-  <p class="note" style="margin-top:4px">Paste the descriptions for all the cards at once. Start each card on its own line with its number, for example "Atu 0 Physis", "I Magickian" or "XIII - Death", and put its text underneath. The app splits it by card and uses your text in place of the built-in meanings. Your text is saved only on this device.</p>
+  <p class="note" style="margin-top:4px">Paste the descriptions for all the cards at once. Start each card on its own line with its number, for example "Atu 0 Physis", "I Magickian" or "XIII - Death", and put its text underneath. The app splits it by card, removes page numbers, footers and sphere headings copied from a PDF, joins broken lines, and uses your text in place of the built-in meanings. Your text is saved only on this device.</p>
   <textarea id="impTxt" placeholder="Atu 0 Physis&#10;Your text for Physis…&#10;&#10;Atu I Magickian&#10;Your text for the Magickian…" style="width:100%;min-height:220px;font:inherit;font-size:16px;line-height:1.5;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0"></textarea>
   <div class="row"><button class="btn" id="impCheck">Check</button><button class="btn pri" id="impSave" disabled>Save texts</button><button class="btn" id="impCancel">Close</button><button class="btn" id="impClear">Clear all my texts</button></div>
   <div class="eprog" id="impProg"></div>
   <ol class="tlist" id="impList" style="margin-top:8px"></ol>
+ </div>
+ <div class="tedit" id="tSph" hidden>
+  <h3>Your sphere texts</h3>
+  <p class="note" style="margin-top:4px">Paste text about the seven spheres. Start each sphere on its own line with its name, for example "Moon sphere:" or "Saturn", and put its text underneath. When a sphere stands out in a spread, the full reading shows your text for it. Page numbers and footers copied from a PDF are removed. Saved only on this device.</p>
+  <textarea id="sphTxt" placeholder="Moon sphere:&#10;Your text about the Moon sphere…&#10;&#10;Mercury sphere:&#10;…" style="width:100%;min-height:220px;font:inherit;font-size:16px;line-height:1.5;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0"></textarea>
+  <div class="row"><button class="btn" id="sphCheck">Check</button><button class="btn pri" id="sphSave" disabled>Save texts</button><button class="btn" id="sphCancel">Close</button><button class="btn" id="sphClear">Clear sphere texts</button></div>
+  <div class="eprog" id="sphProg"></div>
+  <ol class="tlist" id="sphList" style="margin-top:8px"></ol>
+ </div>
+ <div class="tedit" id="tNote" hidden>
+  <h3>My notes</h3>
+  <p class="note" style="margin-top:4px">Keep any passages you want close at hand, such as the alchemical stages or the aeons. They appear at the end of every full reading, folded away until you open them. Saved only on this device.</p>
+  <textarea id="noteTxt" style="width:100%;min-height:220px;font:inherit;font-size:16px;line-height:1.5;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0"></textarea>
+  <div class="row"><button class="btn pri" id="noteSave">Save notes</button><button class="btn" id="noteCancel">Close</button></div>
+  <div class="eprog" id="noteProg"></div>
  </div>
  <div class="table" id="ttable"><div class="tstatus" id="tStatus"></div></div>
  <div class="tread">
@@ -1190,10 +1206,15 @@ function shrink(file){
 }
 $('eFiles').onchange = async () => {
   const files = [...$('eFiles').files].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'})).slice(0, 22);
-  let bad = 0;
+  let bad = 0, used = new Set();
+  const slots = files.map(f => { const m = f.name.match(/^\s*(\d{1,2})(?!\d)/); const n = m ? +m[1] : -1; return n >= 0 && n <= 21 ? n : -1; });
+  slots.forEach(n => { if (n >= 0) used.add(n); });
+  let free = 0;
+  for (let i = 0; i < slots.length; i++) if (slots[i] < 0) { while (used.has(free) && free < 22) free++; slots[i] = free < 22 ? free : -1; if (free < 22) used.add(free); }
   for (let i = 0; i < files.length; i++) {
     $('eProg').textContent = `Loading image ${i+1} of ${files.length}…`;
-    try { ed.img[i] = await shrink(files[i]); } catch (e) { bad++; }
+    if (slots[i] < 0) continue;
+    try { ed.img[slots[i]] = await shrink(files[i]); } catch (e) { bad++; }
     drawGrid();
   }
   $('eProg').textContent = `${files.length - bad} image${files.length - bad === 1 ? '' : 's'} added${bad ? `, ${bad} couldn’t be read` : ''}. Check the order below and tap any card to swap it.`;
@@ -1267,7 +1288,7 @@ function renderReading(){
   const ready = !tBusy && T.dealt.length && T.dealt.every(c => c.up);
   box.hidden = !ready;
   if (!ready) { lastReading = ''; return; }
-  const sig = T.dealt.map(c => c.n + (c.rev ? 'r' : '') + c.label).join('|') + JSON.stringify(userText) + $('tQ').value;
+  const sig = T.dealt.map(c => c.n + (c.rev ? 'r' : '') + c.label).join('|') + JSON.stringify(userText) + JSON.stringify(typeof userSph === 'undefined' ? {} : userSph) + (typeof userNotes === 'undefined' ? '' : userNotes) + $('tQ').value;
   if (sig === lastReading) return;
   lastReading = sig;
   const isTree = $('tSpread').value === 'tree' && T.dealt.every(c => SPHQ[c.label]);
@@ -1298,6 +1319,9 @@ function renderReading(){
     const tops = ranked.filter(r => r[1] === ranked[0][1]).map(r => r[0]);
     h += `<p>The spheres of ${tops.join(' and ')} are equally strong here, so the situation is pulled between ${tops.map(t => SPHQ[t].q).join(', and ')}.</p>`;
   }
+  { const us = typeof userSph === 'undefined' ? {} : userSph;
+    const lead = T.dealt.length === 1 ? [ranked[0][0]] : ranked.filter(r => r[1] === ranked[0][1] && r[1] >= 2).map(r => r[0]);
+    for (const sp of lead) if (us[sp]) h += `<p class="utext"><b>Sphere of ${sp}, from your text:</b> ${esc(us[sp])}</p>`; }
   const missing = Object.keys(SPHQ).filter(k => !tally[k]);
   if (T.dealt.length >= 5 && missing.length && missing.length <= 3) h += `<p>No card comes from ${missing.join(' or ')}, so ${missing.map(m => SPHQ[m].q.split(',')[0]).join(' and ')} play little part for now.</p>`;
   const rv = T.dealt.filter(c => c.rev).length;
@@ -1310,6 +1334,7 @@ function renderReading(){
   const kw = c => firstPart(c.rev ? ATU[c.n][4] : ATU[c.n][3]);
   h += '<h4>In short</h4>';
   h += `<p class="sum">${ATU[core.n][1]}${core.rev ? ' (reversed)' : ''} sets the tone: ${kw(core)}.` + (end && end !== core ? ` ${ATU[end.n][1]}${end.rev ? ' (reversed)' : ''} shows where it leads: ${kw(end)}.` : '') + `</p>`;
+  if (typeof userNotes !== 'undefined' && userNotes) h += `<details style="margin-top:14px"><summary style="cursor:pointer;min-height:40px;display:flex;align-items:center;color:#ff8494">Your notes</summary><p class="utext">${esc(userNotes)}</p></details>`;
   h += `<div class="row" style="margin-top:12px"><button class="btn" id="tCopy">Copy reading</button></div>`;
   box.innerHTML = h;
   $('tCopy').onclick = async () => { try { await navigator.clipboard.writeText(box.innerText.replace(/\nCopy reading$/, '')); $('tCopy').textContent = 'Copied'; } catch (e) { $('tCopy').textContent = 'Copy not available here'; } setTimeout(() => { if ($('tCopy')) $('tCopy').textContent = 'Copy reading'; }, 1800); };
@@ -1319,8 +1344,24 @@ function renderReading(){
 const ROM = {i:1,v:5,x:10,l:50};
 function romanToInt(t){ t = t.toLowerCase(); if (t === '0') return 0; if (!/^[ivxl]+$/.test(t)) return -1; let n = 0; for (let i = 0; i < t.length; i++) { const a = ROM[t[i]], b = ROM[t[i+1]] || 0; n += a < b ? -a : a; } return n; }
 const norm = t => t.toLowerCase().replace(/[^a-z]/g, '');
+const NAMESET = new Set(ATU.map(a => norm(a[2])));
+function cleanLines(txt){
+  return txt.replace(/\r/g, '').split('\n').filter(ln => {
+    const t = ln.trim();
+    if (!t) return true;
+    if (/sinister pathway|triangle order|skull press|magister hagur|©|\(c\)\s*\d{4}/i.test(t)) return false;
+    if (/^\d{1,3}$/.test(t)) return false;
+    if (/sphere:\s*$/i.test(t)) return false;
+    if (/^emanations\b/i.test(t) || /^major arcana$/i.test(t)) return false;
+    if (NAMESET.has(norm(t))) return false;
+    return true;
+  });
+}
+function unwrap(body){
+  return body.replace(/(\w)-\n\s*(?=[a-z])/g, '$1').replace(/\s*\n\s*\n\s*/g, '\u0001').replace(/\s*\n\s*/g, ' ').replace(/\u0001/g, '\n\n').replace(/ {2,}/g, ' ').trim();
+}
 function parseTexts(txt){
-  const lines = txt.replace(/\r/g, '').split('\n'), heads = [];
+  const lines = cleanLines(txt), heads = [];
   lines.forEach((ln, li) => {
     const m = ln.match(/^\s*(atu\s*)?(0|[ivxl]{1,6})\b\s*[-–—:.)]?\s*(.*)$/i);
     if (!m) return;
@@ -1331,7 +1372,7 @@ function parseTexts(txt){
   const out = {};
   heads.forEach((h, k) => {
     const end = k + 1 < heads.length ? heads[k+1].li : lines.length;
-    let body = lines.slice(h.li + 1, end).join('\n').trim();
+    let body = unwrap(lines.slice(h.li + 1, end).join('\n'));
     if (!body) { const after = h.rest.replace(new RegExp('^\\s*' + ATU[h.n][1].replace(/ /g, '\\s*(the\\s*)?') + '\\s*[-–—:]*\\s*', 'i'), '').trim(); body = after; }
     if (body) out[h.n] = out[h.n] ? out[h.n] + '\n\n' + body : body;
   });
@@ -1358,6 +1399,47 @@ $('impClear').onclick = () => {
   if (Date.now() - clearArm > 3000) { clearArm = Date.now(); $('impClear').textContent = 'Tap again to clear'; setTimeout(() => $('impClear').textContent = 'Clear all my texts', 3000); return; }
   userText = {}; saveText(); lastReading = ''; $('impProg').textContent = 'Your texts were cleared. The built-in meanings are back.'; tRender();
 };
+
+/* ---------- sphere texts and notes ---------- */
+let userSph = {}, userNotes = '';
+try { userSph = JSON.parse(localStorage.getItem('stargame-tarot-spheres') || '{}') || {}; } catch (e) {}
+try { userNotes = localStorage.getItem('stargame-tarot-notes') || ''; } catch (e) {}
+const saveSph = () => { try { localStorage.setItem('stargame-tarot-spheres', JSON.stringify(userSph)); } catch (e) {} };
+const SPH_NAMES = Object.keys(SPHQ);
+function parseSpheres(txt){
+  const lines = txt.replace(/\r/g, '').split('\n'), heads = [];
+  lines.forEach((ln, li) => {
+    const m = ln.match(/^\s*(?:the\s+)?(moon|mercury|venus|sun|mars|jupiter|saturn)(?:\s+sphere)?\s*:?\s*$/i)
+           || ln.match(/^\s*(?:the\s+)?sphere\s+of\s+(?:the\s+)?(moon|mercury|venus|sun|mars|jupiter|saturn)\s*:?\s*$/i);
+    if (m) heads.push({li, sp: m[1][0].toUpperCase() + m[1].slice(1).toLowerCase()});
+  });
+  const out = {};
+  heads.forEach((h, k) => {
+    const end = k + 1 < heads.length ? heads[k+1].li : lines.length;
+    const body = unwrap(cleanLines(lines.slice(h.li + 1, end).join('\n')).join('\n'));
+    if (body) out[h.sp] = out[h.sp] ? out[h.sp] + '\n\n' + body : body;
+  });
+  return out;
+}
+let sphParsed = null, sphArm = 0;
+$('tSphOpen').onclick = () => { $('tSph').hidden = false; $('sphProg').textContent = ''; $('sphList').innerHTML = ''; $('sphSave').disabled = true; $('tSph').scrollIntoView({behavior:'smooth', block:'start'}); };
+$('sphCancel').onclick = () => { $('tSph').hidden = true; };
+$('sphTxt').oninput = () => { $('sphSave').disabled = true; sphParsed = null; };
+$('sphCheck').onclick = () => {
+  sphParsed = parseSpheres($('sphTxt').value);
+  const found = SPH_NAMES.filter(k => k in sphParsed);
+  $('sphProg').textContent = found.length ? `Found text for ${found.length} of 7 spheres: ${found.join(', ')}.` : 'No spheres found. Start each one on its own line with its name, like "Moon sphere:".';
+  $('sphList').innerHTML = found.map(k => `<li><b>${k}</b>: ${esc(sphParsed[k].slice(0, 90))}${sphParsed[k].length > 90 ? '…' : ''}</li>`).join('');
+  $('sphSave').disabled = !found.length;
+};
+$('sphSave').onclick = () => { if (!sphParsed) return; Object.assign(userSph, sphParsed); saveSph(); lastReading = ''; $('sphProg').textContent = `Saved ${Object.keys(sphParsed).length} sphere texts.`; $('sphSave').disabled = true; tRender(); };
+$('sphClear').onclick = () => {
+  if (Date.now() - sphArm > 3000) { sphArm = Date.now(); $('sphClear').textContent = 'Tap again to clear'; setTimeout(() => $('sphClear').textContent = 'Clear sphere texts', 3000); return; }
+  userSph = {}; saveSph(); lastReading = ''; $('sphProg').textContent = 'Sphere texts cleared.'; tRender();
+};
+$('tNoteOpen').onclick = () => { $('tNote').hidden = false; $('noteTxt').value = userNotes; $('noteProg').textContent = ''; $('tNote').scrollIntoView({behavior:'smooth', block:'start'}); };
+$('noteCancel').onclick = () => { $('tNote').hidden = true; };
+$('noteSave').onclick = () => { userNotes = $('noteTxt').value.trim(); try { localStorage.setItem('stargame-tarot-notes', userNotes); } catch (e) {} lastReading = ''; $('noteProg').textContent = 'Notes saved.'; tRender(); };
 
 function route(){
   const t = location.hash === '#tarot';
