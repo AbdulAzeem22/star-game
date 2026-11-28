@@ -1068,7 +1068,7 @@ const rnd = k => { const a = new Uint32Array(1); crypto.getRandomValues(a); retu
 let T = {deck: ATU.map((_, n) => ({n, rev:false})), dealt: [], shuffled: 0, cut: false, sel: -1};
 let tBusy = false, zTop = 10;
 try { const v = JSON.parse(localStorage.getItem('stargame-tarot') || 'null'); if (v) { $('sN').value = v.n || 7; $('sRev').checked = v.rev !== false; } } catch (e) {}
-const tSave = () => { try { localStorage.setItem('stargame-tarot', JSON.stringify({n: +$('sN').value, rev: $('sRev').checked, deck: deckKey})); } catch (e) {} };
+const tSave = () => { try { localStorage.setItem('stargame-tarot', JSON.stringify({n: +$('sN').value, rev: $('sRev').checked, deck: prefDeck})); } catch (e) {} };
 $('tSpread').innerHTML = Object.entries(SPREADS).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
 $('tSpread').value = 'three';
 
@@ -1236,25 +1236,29 @@ function db(){
 async function dbDo(mode, fn){ const d = await db(); return new Promise((res, rej) => { const tx = d.transaction('decks', mode), st = tx.objectStore('decks'); const q = fn(st); tx.oncomplete = () => res(q && q.result); tx.onerror = () => rej(tx.error); }); }
 let memOnly = false, decksLoaded = false;
 async function loadDecks(){
-  try { customDecks = (await dbDo('readonly', st => st.getAll())) || []; }
-  catch (e) { memOnly = true; }
+  for (let i = 0; i < 4; i++) {
+    try { customDecks = (await dbDo('readonly', st => st.getAll())) || []; memOnly = false; break; }
+    catch (e) { memOnly = true; dbP = null; await new Promise(r => setTimeout(r, 700)); }
+  }
   decksLoaded = true; fillDeckSelect();
 }
 function fillDeckSelect(){
   $('tDeck').innerHTML = Object.entries(STYLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')
     + customDecks.map(d => `<option value="c:${esc(d.id)}">${esc(d.name)}</option>`).join('')
     + '<option value="add">+ Add your own deck…</option>';
+  if (prefDeck.startsWith('c:') && customDecks.some(d => 'c:' + d.id === prefDeck)) deckKey = prefDeck;
   if (decksLoaded && deckKey.startsWith('c:') && !curCustom()) deckKey = 'naos';
   if (!deckKey.startsWith('c:') && !STYLES[deckKey]) deckKey = 'naos';
   $('tDeck').value = curCustom() || !deckKey.startsWith('c:') ? deckKey : 'naos';
   $('tEditDeck').hidden = !curCustom();
 }
 try { const v = JSON.parse(localStorage.getItem('stargame-tarot') || 'null'); if (v && v.deck) deckKey = v.deck; } catch (e) {}
-function saveDeckKey(){ try { const v = JSON.parse(localStorage.getItem('stargame-tarot') || '{}') || {}; v.deck = deckKey; localStorage.setItem('stargame-tarot', JSON.stringify(v)); } catch (e) {} }
+let prefDeck = deckKey;
+function saveDeckKey(){ try { const v = JSON.parse(localStorage.getItem('stargame-tarot') || '{}') || {}; v.deck = prefDeck; localStorage.setItem('stargame-tarot', JSON.stringify(v)); } catch (e) {} }
 $('tDeck').onchange = () => {
   const v = $('tDeck').value;
   if (v === 'add') { $('tDeck').value = deckKey; openEditor(null); return; }
-  deckKey = v; saveDeckKey(); $('tEditDeck').hidden = !curCustom(); tRender();
+  deckKey = prefDeck = v; saveDeckKey(); $('tEditDeck').hidden = !curCustom(); tRender();
 };
 $('tEditDeck').onclick = () => openEditor(curCustom());
 
@@ -1313,7 +1317,7 @@ $('eSave').onclick = async () => {
   try { if (!memOnly) await dbDo('readwrite', st => st.put(d)); }
   catch (e) { memOnly = true; }
   const i = customDecks.findIndex(x => x.id === d.id); if (i >= 0) customDecks[i] = d; else customDecks.push(d);
-  deckKey = 'c:' + d.id; saveDeckKey(); fillDeckSelect();
+  deckKey = prefDeck = 'c:' + d.id; saveDeckKey(); fillDeckSelect();
   ed = null; $('tEdit').hidden = true; tRender();
   const missing = d.img.slice(0, 21).filter(x => !x).length;
   tStatus(missing ? `Deck saved. ${missing} card${missing === 1 ? '' : 's'} without an image will use the built-in design.` : 'Deck saved.');
@@ -1325,6 +1329,7 @@ $('eDel').onclick = async () => {
   try { if (!memOnly) await dbDo('readwrite', st => st.delete(ed.id)); } catch (e) {}
   customDecks = customDecks.filter(x => x.id !== ed.id);
   if (deckKey === 'c:' + ed.id) deckKey = 'naos';
+  if (prefDeck === 'c:' + ed.id) prefDeck = 'naos';
   saveDeckKey(); fillDeckSelect(); ed = null; $('tEdit').hidden = true; tRender();
 };
 fillDeckSelect();
