@@ -62,7 +62,22 @@ button:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 @keyframes pulse{to{filter:brightness(1.35)}}
 @media(prefers-reduced-motion:reduce){.pc{animation:none!important;transition:none}}
 svg.e{fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
-.tools{position:absolute;right:10px;bottom:10px;display:flex;gap:6px}
+.tools{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;z-index:3}
+.stage .tools button{font-size:17px;min-width:40px;height:40px;padding:0}
+.g3host{position:absolute;inset:0}
+.g3host canvas{display:block}
+.stage.is3d{perspective:none;background:#0a0817;height:clamp(420px,74vh,780px)}
+.stage.is3d::before,.stage.is3d .world{display:none}
+.hud{position:absolute;left:10px;top:10px;z-index:3;max-width:calc(100% - 80px);padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:#16132acc;backdrop-filter:blur(6px);font-size:14px;line-height:1.35;pointer-events:none}
+.hud b{font-weight:600}
+.hud .dt{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:-1px;box-shadow:0 0 0 1.5px #fff6}
+.hud small{display:block;color:var(--mute);font-size:12.5px;margin-top:2px}
+.fsbar{display:none;position:absolute;left:50%;bottom:14px;transform:translateX(-50%);gap:8px;z-index:3}
+.fsbar .btn{backdrop-filter:blur(6px);background:#16132acc;white-space:nowrap}.fsbar .btn.pri{background:var(--red)}
+.stage.fs{position:fixed;inset:0;height:auto;z-index:40}
+.stage.fs .fsbar{display:flex}
+.stage.fs .legend{bottom:74px}
+body.nofs-scroll{overflow:hidden}
 .tools button,.chip{min-width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:#16132acc;backdrop-filter:blur(6px)}
 .legend{position:absolute;left:12px;bottom:12px;font-size:12px;color:var(--mute);display:grid;gap:2px;pointer-events:none}
 .legend i{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px;border:2px solid}
@@ -225,14 +240,19 @@ label.btn{display:inline-flex;align-items:center;cursor:pointer}
 
 <div class="wrap" id="gameView">
  <div class="stage" id="stage">
+  <div class="g3host" id="g3host"></div>
   <div class="world" id="world"></div>
+  <div class="hud" id="hud" aria-live="polite"></div>
   <div class="legend"><span><i style="border-color:var(--red)"></i>White's goal on Mira</span><span><i style="border-color:var(--violet)"></i>Black's goal on Mira</span></div>
   <div class="tools">
    <button id="rotL" aria-label="Rotate left">⟲</button>
    <button id="rotR" aria-label="Rotate right">⟳</button>
    <button id="zIn" aria-label="Zoom in">+</button>
    <button id="zOut" aria-label="Zoom out">−</button>
+   <button id="vHome" aria-label="Reset view">⌂</button>
+   <button id="vFs" aria-label="Full screen">⛶</button>
   </div>
+  <div class="fsbar"><button class="btn pri" id="fsHint">💡 Hint</button><button class="btn" id="fsUndo">Undo</button><button class="btn" id="fsExit">Exit</button></div>
   <div class="over" id="over"><div><h2 id="overT"></h2><button class="btn pri" id="again">New game</button></div></div>
  </div>
 
@@ -246,7 +266,7 @@ label.btn{display:inline-flex;align-items:center;cursor:pointer}
   <div class="count" id="count"></div>
   <div>
    <p class="lab">View</p>
-   <div class="seg" data-set="view"><button data-val="spiral">Spiral</button><button data-val="stack">Stack</button><button data-val="flat">Row</button></div>
+   <div class="seg" data-set="view"><button data-val="3d">3D</button><button data-val="spiral">Spiral</button><button data-val="stack">Stack</button><button data-val="flat">Row</button></div>
   </div>
   <details class="set">
    <summary>Game settings</summary>
@@ -262,6 +282,7 @@ label.btn{display:inline-flex;align-items:center;cursor:pointer}
    <div class="seg" data-set="miraN"><button data-val="0">None</button><button data-val="3">3 moves</button><button data-val="5">5</button><button data-val="7">7</button></div>
    <label class="tog" style="margin-top:8px"><input type="checkbox" data-tog="miraCap"> Captures allowed on Mira</label>
    <label class="tog"><input type="checkbox" data-tog="hints"> Show legal moves</label>
+   <label class="tog"><input type="checkbox" data-tog="fx"> Sound and vibration</label>
   </details>
   <div><p class="lab">Moves</p><ol class="log" id="log"></ol></div>
  </aside>
@@ -417,13 +438,13 @@ const sym = p => `<svg class="e o"><use href="#e${Math.floor(p/3)}"/></svg><svg 
 const $ = id => document.getElementById(id);
 const stage = $('stage'), world = $('world');
 
-let cfg = {mode:'ai', human:'w', view:'spiral', rules:'v1', miraN:'3', miraCap:true, exact:false, hints:true};
+let cfg = {mode:'ai', human:'w', view:'3d', fx:true, v3:1, rules:'v1', miraN:'3', miraCap:true, exact:false, hints:true};
 let view = {spin:-20, tilt:54, zoom:1};
 let S = null, hist = [], sel = null, busy = false, hintK = -1, aiTimer = null;
 
 function save(){ try { localStorage.setItem('stargame-en', JSON.stringify({cfg, S})); } catch (e) {} }
 function load(){
-  try { const d = JSON.parse(localStorage.getItem('stargame-en')); if (d && d.cfg) { Object.assign(cfg, d.cfg); if (d.cfg.miraLimit === false && !d.cfg.miraN) cfg.miraN = '0'; delete cfg.miraLimit; } if (d && d.S && Array.isArray(d.S.pieces) && d.S.pieces.length === 54) S = d.S; } catch (e) {}
+  try { const d = JSON.parse(localStorage.getItem('stargame-en')); if (d && d.cfg) { Object.assign(cfg, d.cfg); if (d.cfg.miraLimit === false && !d.cfg.miraN) cfg.miraN = '0'; delete cfg.miraLimit; } if (!cfg.v3) { cfg.view = '3d'; cfg.v3 = 1; } if (cfg.fx == null) cfg.fx = true; if (d && d.S && Array.isArray(d.S.pieces) && d.S.pieces.length === 54) S = d.S; } catch (e) {}
 }
 
 function newGame(){
@@ -553,7 +574,26 @@ function next(){
     aiTimer = setTimeout(() => { const mv = best(S, S.turn); busy = false; if (mv) doMove(mv); }, 450);
   }
 }
-function doMove(m){ hist.push(S); if (hist.length > 300) hist.shift(); S = apply(S, m, true); sel = null; hintK = -1; save(); next(); }
+function doMove(m){ hist.push(S); if (hist.length > 300) hist.shift(); S = apply(S, m, true); sel = null; hintK = -1; save(); fx(S.over ? 'win' : m.cap != null ? 'cap' : 'move'); next(); }
+let actx = null;
+function buzz(ms){ if (cfg.fx && navigator.vibrate) try { navigator.vibrate(ms); } catch (e) {} }
+function fx(kind){
+  if (!cfg.fx) return;
+  buzz(kind === 'cap' ? [25, 40, 35] : kind === 'win' ? [40, 60, 40, 60, 80] : 14);
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    const t = actx.currentTime, tone = (f1, f2, d, type, vol, at = 0) => {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = type; o.frequency.setValueAtTime(f1, t + at); o.frequency.exponentialRampToValueAtTime(f2, t + at + d);
+      g.gain.setValueAtTime(0.0001, t + at); g.gain.exponentialRampToValueAtTime(vol, t + at + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + at + d);
+      o.connect(g).connect(actx.destination); o.start(t + at); o.stop(t + at + d + 0.02);
+    };
+    if (kind === 'move') { tone(520, 300, 0.12, 'sine', 0.18); tone(1040, 700, 0.06, 'triangle', 0.05); }
+    else if (kind === 'cap') { tone(220, 55, 0.35, 'sawtooth', 0.12); tone(880, 220, 0.25, 'square', 0.04, 0.03); }
+    else if (kind === 'win') [392, 494, 587, 784].forEach((f, i) => tone(f, f * 1.01, 0.45, 'triangle', 0.14, i * 0.13));
+  } catch (e) {}
+}
 
 function onCell(k){
   if (busy || !humanTurn()) return;
@@ -613,9 +653,28 @@ function render(){
     }
     h += '</div>';
   }
-  world.innerHTML = h;
-  applyView();
+  if (use3d()) { world.innerHTML = ''; g3.update(); }
+  else { world.innerHTML = h; applyView(); }
   renderSide(moves);
+}
+let g3 = null, g3state = 'none';
+const use3d = () => cfg.view === '3d' && g3state === 'ready';
+function webglOK(){ try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { return false; } }
+function setup3d(){
+  const on = cfg.view === '3d';
+  stage.classList.toggle('is3d', on && g3state === 'ready');
+  if (g3) g3.show(on);
+  if (!on || g3state !== 'none') return;
+  if (!webglOK()) { g3state = 'fail'; cfg.view = 'spiral'; save(); toast('3D is not available on this device, using the Spiral view'); render(); return; }
+  g3state = 'loading';
+  import('./g3d.js?v=1').then(m => {
+    g3 = m.create($('g3host'), {
+      get S(){ return S; }, get sel(){ return sel; }, get hintK(){ return hintK; }, get cfg(){ return cfg; },
+      moves: () => (humanTurn() && !busy) ? legal(S, S.turn) : [],
+      occ: k => occOf(S)[k], onCell, buzz, key, MIRA, NAOS, TARGETS, BOARDS, dark
+    });
+    window.__sg3 = g3; g3state = 'ready'; setup3d(); render();
+  }).catch(err => { console.error(err); g3state = 'fail'; cfg.view = 'spiral'; save(); toast('3D could not load, using the Spiral view'); setup3d(); render(); });
 }
 function renderSide(moves){
   let t, sub = '';
@@ -627,8 +686,13 @@ function renderSide(moves){
     if (sel != null) { const p = S.pieces[sel]; sub = `Selected ${phaseName(p.phase)}: moves like ${EL[Math.floor(p.phase/3)]}, becomes ${phaseName((p.phase+1)%9)}.`; if (cfg.rules === 'naos' && p.phase === 8) sub += ' It can capture from any board.'; }
     else if (expired(S, S.turn).length) sub = `A piece on Mira has used its ${cfg.miraN} turns and must move.`;
     else if (cfg.mode === 'ai' && S.turn === cfg.human) sub = `You are ${NAME[cfg.human]}. Tap a piece to see its moves.`;
+    if (sel == null && cfg.view === '3d') sub += (sub ? ' ' : '') + 'Drag to turn the view, pinch to zoom, press and hold a board to zoom in on it, double-tap empty space to reset.';
   }
   $('status').innerHTML = `${t}<small>${sub}</small>`;
+  const dot = S.over ? '' : `<i class="dt" style="background:${S.turn === 'w' ? '#efe6d2' : '#1a1526'}"></i>`;
+  $('hud').innerHTML = `${dot}<b>${t}</b>${sel != null && !S.over ? `<small>${sub}</small>` : ''}`;
+  $('fsHint').disabled = $('hint').disabled = !humanTurn() || busy;
+  $('fsUndo').disabled = !hist.length;
   const n = col => S.pieces.filter(p => p.alive && p.col === col).length;
   $('count').innerHTML = `<span><b>${n('w')}</b> White</span><span><b>${n('b')}</b> Black</span><span><b>${S.log.length}</b> moves</span>`;
   $('log').innerHTML = S.log.slice(-40).reverse().map(e => `<li><b>${NAME[e.col]}</b> ${e.txt}</li>`).join('');
@@ -646,7 +710,7 @@ function toast(msg){ const el = $('toast'); el.textContent = msg; el.classList.a
 
 /* ---------- input ---------- */
 let drag = null, moved = false;
-stage.addEventListener('pointerdown', e => { if (e.target.closest('.tools,.over')) return; drag = {x:e.clientX, y:e.clientY, s:view.spin, t:view.tilt}; moved = false; });
+stage.addEventListener('pointerdown', e => { if (e.target.closest('.tools,.over,.fsbar') || use3d()) return; drag = {x:e.clientX, y:e.clientY, s:view.spin, t:view.tilt}; moved = false; });
 addEventListener('pointermove', e => {
   if (!drag || cfg.view === 'flat') return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
@@ -655,11 +719,23 @@ addEventListener('pointermove', e => {
 });
 addEventListener('pointerup', () => { drag = null; });
 world.addEventListener('click', e => { if (moved) { moved = false; return; } const c = e.target.closest('.cell'); if (c) onCell(+c.dataset.k); });
-stage.addEventListener('wheel', e => { e.preventDefault(); view.zoom = Math.max(.6, Math.min(2.2, view.zoom * (e.deltaY < 0 ? 1.08 : 0.92))); applyView(); }, {passive:false});
-$('rotL').onclick = () => { view.spin -= 30; applyView(); };
-$('rotR').onclick = () => { view.spin += 30; applyView(); };
-$('zIn').onclick = () => { view.zoom = Math.min(2.2, view.zoom*1.15); applyView(); };
-$('zOut').onclick = () => { view.zoom = Math.max(.6, view.zoom/1.15); applyView(); };
+stage.addEventListener('wheel', e => { if (use3d()) return; e.preventDefault(); view.zoom = Math.max(.6, Math.min(2.2, view.zoom * (e.deltaY < 0 ? 1.08 : 0.92))); applyView(); }, {passive:false});
+$('rotL').onclick = () => { if (use3d()) return g3.rotate(-1); view.spin -= 30; applyView(); };
+$('rotR').onclick = () => { if (use3d()) return g3.rotate(1); view.spin += 30; applyView(); };
+$('zIn').onclick = () => { if (use3d()) return g3.zoom(1.2); view.zoom = Math.min(2.2, view.zoom*1.15); applyView(); };
+$('zOut').onclick = () => { if (use3d()) return g3.zoom(1/1.2); view.zoom = Math.max(.6, view.zoom/1.15); applyView(); };
+$('vHome').onclick = () => { if (use3d()) return g3.home(); view.zoom = 1; if (cfg.view === 'stack') { view.tilt = 62; view.spin = -10; } else { view.tilt = 54; view.spin = -20; } applyView(); };
+function setFs(on){
+  stage.classList.toggle('fs', on); document.body.classList.toggle('nofs-scroll', on);
+  try { if (on && document.documentElement.requestFullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (e) {}
+  $('vFs').setAttribute('aria-pressed', String(on));
+  if (g3) g3.resize(); applyView();
+}
+$('vFs').onclick = () => setFs(!stage.classList.contains('fs'));
+$('fsExit').onclick = () => setFs(false);
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && stage.classList.contains('fs')) setFs(false); });
+$('fsHint').onclick = () => $('hint').onclick();
+$('fsUndo').onclick = () => $('undo').onclick();
 $('new').onclick = $('again').onclick = () => newGame();
 $('hint').onclick = () => {
   if (!humanTurn() || busy) return;
@@ -681,7 +757,7 @@ document.querySelectorAll('.seg').forEach(g => g.addEventListener('click', e => 
   if (k === 'miraN') { cfg.miraN = v; sel = null; save(); render(); return; }
   if (cfg[k] === v) return;
   cfg[k] = v;
-  if (k === 'view') { if (v === 'stack') { view.tilt = 62; view.spin = -10; } else if (v === 'spiral') { view.tilt = 54; view.spin = -20; } view.zoom = 1; save(); render(); }
+  if (k === 'view') { setup3d(); if (v === 'stack') { view.tilt = 62; view.spin = -10; } else if (v === 'spiral') { view.tilt = 54; view.spin = -20; } view.zoom = 1; save(); render(); }
   else newGame();
 }));
 document.querySelectorAll('[data-tog]').forEach(c => c.addEventListener('change', () => { cfg[c.dataset.tog] = c.checked; save(); sel = null; render(); }));
@@ -691,6 +767,7 @@ $('cycle').innerHTML = Array.from({length:9}, (_,p) => `<span class="tk"><svg cl
 $('spheres').innerHTML = BOARDS.map((b,i) => `<tr><td>${i+1}</td><td>${b}</td><td>${SPHERES[i]}</td></tr>`).join('');
 
 load();
+setup3d();
 if (S) next(); else newGame();
 
 /* ---------- tarot ---------- */
